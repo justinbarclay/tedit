@@ -1,0 +1,5 @@
+cmake_minimum_required (VERSION 2.6)
+project (kilo)
+add_executable(kilo kilo.c)
+set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+add_definitions(-W -Wall -Wextra -pedantic)
