@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include <stdio.h>
+#include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <termios.h>
@@ -8,7 +9,7 @@ struct termios orig_termios;
 
 void enableRawMode();
 void disableRawMode();
-
+void die(const char *s);
 int main(int argc, char *argv[])
 {
     enableRawMode();
@@ -16,7 +17,9 @@ int main(int argc, char *argv[])
     // Read 1 byte at a time
     while(1){
         char input = '\0'; // Input from user
-        read(STDIN_FILENO, &input, 1);
+        if(read(STDIN_FILENO, &input, 1) ==-1 && errno != EAGAIN){
+            die("read");
+        }
         if(iscntrl(input)) {
             printf("%d\r\n", input);
         } else {
@@ -28,8 +31,13 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+
+// Setup
 void enableRawMode(){
-    tcgetattr(STDIN_FILENO, &orig_termios);
+    
+    if(tcgetattr(STDIN_FILENO, &orig_termios) == -1){
+        die("tcsetattr");
+    }
     atexit(disableRawMode);
 
     struct termios raw;
@@ -46,9 +54,19 @@ void enableRawMode(){
     raw.c_cc[VMIN] = 0; // Value sets minimum number of bytes of input needed bfore read() can return. Set so it returns right away
     raw.c_cc[VTIME] = 1; // Maximum amount of time read waits to return, in tenths of seconds
 
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+    if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1){
+        die("tcsetattr");
+    }
 }
 
 void disableRawMode(){
-    tcsetattr(STDERR_FILENO,TCSAFLUSH,&orig_termios);
+    if(tcsetattr(STDERR_FILENO,TCSAFLUSH,&orig_termios) == -1){
+        die("tcsetattrint");
+    }
+}
+
+// Error handling
+void die(const char *s){
+    perror(s);
+    exit(1);
 }
