@@ -1,3 +1,4 @@
+/*** include ***/
 #include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
@@ -5,11 +6,22 @@
 #include <stdlib.h>
 #include <termios.h>
 
+
+/*** defines ***/
+#define CTRL_KEY(k) ((k) & 0x1f)
+
+
+/*** data ***/
 struct termios orig_termios;
 
+/*** terminal ***/
 void enableRawMode();
 void disableRawMode();
+// error handling
+
 void die(const char *s);
+
+/*** init ***/
 int main(int argc, char *argv[])
 {
     enableRawMode();
@@ -26,13 +38,13 @@ int main(int argc, char *argv[])
             printf("%d ('%c')\r\n", input, input);
         }
 
-        if(input == 'q') break;
+        if(input == CTRL_KEY('q')) break;
     }
     return 0;
 }
 
 
-// Setup
+/*** terminal ***/
 void enableRawMode(){
     
     if(tcgetattr(STDIN_FILENO, &orig_termios) == -1){
