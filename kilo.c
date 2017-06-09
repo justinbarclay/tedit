@@ -8,7 +8,7 @@
 
 
 /*** defines ***/
-#define CTRL_KEY(k) ((k) & 0x1f)
+#define CTRL_KEY(k) ((k) & 0x1f) // Binary & operation
 
 
 /*** data ***/
@@ -17,6 +17,11 @@ struct termios orig_termios;
 /*** terminal ***/
 void enableRawMode();
 void disableRawMode();
+char editorReadKey();
+void editorProcessKeyPress();
+
+/*** output ***/
+void editorRefreshScreen();
 // error handling
 
 void die(const char *s);
@@ -28,17 +33,8 @@ int main(int argc, char *argv[])
 
     // Read 1 byte at a time
     while(1){
-        char input = '\0'; // Input from user
-        if(read(STDIN_FILENO, &input, 1) ==-1 && errno != EAGAIN){
-            die("read");
-        }
-        if(iscntrl(input)) {
-            printf("%d\r\n", input);
-        } else {
-            printf("%d ('%c')\r\n", input, input);
-        }
-
-        if(input == CTRL_KEY('q')) break;
+        editorRefreshScreen();
+        editorProcessKeyPress();
     }
     return 0;
 }
@@ -79,6 +75,44 @@ void disableRawMode(){
 
 // Error handling
 void die(const char *s){
+    // Clear screen, and print error
+    editorRefreshScreen()
     perror(s);
     exit(1);
+}
+
+char editorReadKey(){
+    int nread;
+    char input;
+
+    while((nread = read(STDIN_FILENO, &input, 1)) != 1) {
+        if(nread == -1 && errno != EAGAIN) die("read");
+    }
+    return input;
+}
+void editorProcessKeyPress(){
+    
+    char input = editorReadKey();
+
+    switch(input){
+        case CTRL_KEY('q'):
+            // Clear screen and exit on quit
+            editorRefreshScreen();
+            exit(0);
+            break;
+    }
+}
+
+/*** output ***/
+
+void editorRefreshScreen(){
+    // Write four bytes to terminal
+    // \x1b = escape character (27)
+    // [J = erase screeen
+    // [J2 = clear entire screen
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+
+    //[H = reposition cursor to (1,1)
+    // (1,1) default args
+    write(STDOUT_FILENO, "\x1b[H", 3);
 }
