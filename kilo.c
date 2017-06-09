@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <termios.h>
@@ -12,16 +13,28 @@
 
 
 /*** data ***/
-struct termios orig_termios;
+struct editorConfig {
+    int screenrows;
+    int screencols;
+    struct termios orig_termios;
+};
+
+struct editorConfig CONFIG;
 
 /*** terminal ***/
 void enableRawMode();
 void disableRawMode();
 char editorReadKey();
 void editorProcessKeyPress();
+int getWindowSize(int * row, int *cols);
 
 /*** output ***/
 void editorRefreshScreen();
+void editorDrawRows();
+
+/*** init ***/
+void initEditor();
+
 // error handling
 
 void die(const char *s);
@@ -30,7 +43,7 @@ void die(const char *s);
 int main(int argc, char *argv[])
 {
     enableRawMode();
-
+    initEditor();
     // Read 1 byte at a time
     while(1){
         editorRefreshScreen();
@@ -43,12 +56,12 @@ int main(int argc, char *argv[])
 /*** terminal ***/
 void enableRawMode(){
     
-    if(tcgetattr(STDIN_FILENO, &orig_termios) == -1){
+    if(tcgetattr(STDIN_FILENO, &CONFIG.orig_termios) == -1){
         die("tcsetattr");
     }
     atexit(disableRawMode);
 
-    struct termios raw;
+    struct termios raw = CONFIG.orig_termios;
 
     tcgetattr(STDIN_FILENO,&raw);
 
@@ -58,7 +71,6 @@ void enableRawMode(){
     raw.c_cflag |= (CS8);
     raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 
-    //
     raw.c_cc[VMIN] = 0; // Value sets minimum number of bytes of input needed bfore read() can return. Set so it returns right away
     raw.c_cc[VTIME] = 1; // Maximum amount of time read waits to return, in tenths of seconds
 
@@ -68,7 +80,7 @@ void enableRawMode(){
 }
 
 void disableRawMode(){
-    if(tcsetattr(STDERR_FILENO,TCSAFLUSH,&orig_termios) == -1){
+    if(tcsetattr(STDERR_FILENO,TCSAFLUSH, &CONFIG.orig_termios) == -1){
         die("tcsetattrint");
     }
 }
@@ -76,7 +88,7 @@ void disableRawMode(){
 // Error handling
 void die(const char *s){
     // Clear screen, and print error
-    editorRefreshScreen()
+    editorRefreshScreen();
     perror(s);
     exit(1);
 }
@@ -103,6 +115,18 @@ void editorProcessKeyPress(){
     }
 }
 
+int getWindowSize(int *rows, int *cols){
+    struct winsize ws;
+
+    if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
+        return -1;
+    } else {
+        *cols = ws.ws_col;
+        *rows = ws.ws_row;
+        
+        return 0;
+    }
+}
 /*** output ***/
 
 void editorRefreshScreen(){
@@ -112,7 +136,23 @@ void editorRefreshScreen(){
     // [J2 = clear entire screen
     write(STDOUT_FILENO, "\x1b[2J", 4);
 
+    editorDrawRows();
+    
     //[H = reposition cursor to (1,1)
     // (1,1) default args
     write(STDOUT_FILENO, "\x1b[H", 3);
+}
+
+void editorDrawRows(){
+    int y;
+    for(y = 0; y < CONFIG.screenrows; y++){
+        write(STDOUT_FILENO, "~\r\n", 3);
+    }
+}
+
+/*** init ***/
+void initEditor(){
+    if(getWindowSize(&CONFIG.screenrows, &CONFIG.screencols) == -1){
+        die("getWindowsize");
+    }
 }
