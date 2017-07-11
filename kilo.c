@@ -40,8 +40,7 @@ void initEditor();
 void die(const char *s);
 
 /*** init ***/
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     enableRawMode();
     initEditor();
     // Read 1 byte at a time
@@ -71,7 +70,7 @@ void enableRawMode(){
     raw.c_cflag |= (CS8);
     raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 
-    raw.c_cc[VMIN] = 0; // Value sets minimum number of bytes of input needed bfore read() can return. Set so it returns right away
+    raw.c_cc[VMIN] = 0; // Value sets minimum number of bytes of input needed before read() can return. Set so it returns right away
     raw.c_cc[VTIME] = 1; // Maximum amount of time read waits to return, in tenths of seconds
 
     if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1){
@@ -88,7 +87,8 @@ void disableRawMode(){
 // Error handling
 void die(const char *s){
     // Clear screen, and print error
-    editorRefreshScreen();
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
     perror(s);
     exit(1);
 }
@@ -103,13 +103,14 @@ char editorReadKey(){
     return input;
 }
 void editorProcessKeyPress(){
-    
     char input = editorReadKey();
 
     switch(input){
         case CTRL_KEY('q'):
+            
             // Clear screen and exit on quit
-            editorRefreshScreen();
+            write(STDOUT_FILENO, "\x1b[2J", 4);
+            write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
             break;
     }
@@ -127,15 +128,15 @@ int getWindowSize(int *rows, int *cols){
         return 0;
     }
 }
-/*** output ***/
 
+/*** output ***/
 void editorRefreshScreen(){
     // Write four bytes to terminal
     // \x1b = escape character (27)
     // [J = erase screeen
     // [J2 = clear entire screen
     write(STDOUT_FILENO, "\x1b[2J", 4);
-
+    write(STDOUT_FILENO, "\x1b[H", 3);
     editorDrawRows();
     
     //[H = reposition cursor to (1,1)
