@@ -119,24 +119,41 @@ void editorProcessKeyPress(){
 }
 
 int getCursorPosition(int *rows, int *cols) {
+    char buf[32];
+    unsigned int i = 0;
+    
     // Esc + get argument 6 of Device Status Report
+    // if we didn't write 4 bytes, error
     if(write(STDOUT_FILENO, "\x1b[6n", 4) != 4){
         return -1;
     }
 
-    printf("\r\n");
-    char c;
-
-    while(read(STDIN_FILENO, &c, 1) == 1){
-        if(iscntrl(c)){
-            printf("%d\r\n", c);
-        } else {
-            printf("%d ('%c')\r\n", c, c);
+    while (i < sizeof(buf) - 1) {
+        if(read(STDIN_FILENO, &buf[i], 1) != 1){
+            break;
         }
-    }
-    editorReadKey();
 
-    return -1;
+        if(buf[i] == 'R'){
+            break;
+        }
+
+        i++;
+    }
+    // Null terminate buffer
+    buf[i] = '\0';
+
+    // If the second element does not equal
+    // opening brace, then whats up with that?
+    if(buf[0] != '\x1b' || buf[1] != '['){
+        return -1;
+    }
+
+    // If we do not scan in two integers seperated by ;, then panic
+    if(sscanf(&buf[2], "%d;%d", rows, cols) !=2){
+        return -1;
+    }
+
+    return 0;
 
 }
 
