@@ -26,8 +26,8 @@ void enableRawMode();
 void disableRawMode();
 char editorReadKey();
 void editorProcessKeyPress();
-int getCursorPosition(int *row, int *cols);
-int getWindowSize(int * row, int *cols);
+int getCursorPosition(int *rows, int *cols);
+int getWindowSize(int * rows, int *cols);
 
 /*** output ***/
 void editorRefreshScreen();
@@ -118,8 +118,9 @@ void editorProcessKeyPress(){
     }
 }
 
-int getCursorPosition(int *row, int *cols) {
-    if(write(STDOUT_FILENO, "\x1b[6b", 4) != 4){
+int getCursorPosition(int *rows, int *cols) {
+    // Esc + get argument 6 of Device Status Report
+    if(write(STDOUT_FILENO, "\x1b[6n", 4) != 4){
         return -1;
     }
 
@@ -152,7 +153,7 @@ int getWindowSize(int *rows, int *cols){
             return -1; 
         }
         // Return result of cursor position  after setting it to bottom right
-        return getCursorPosition(row, cols);
+        return getCursorPosition(rows, cols);
     } else {
         *cols = ws.ws_col;
         *rows = ws.ws_row;
