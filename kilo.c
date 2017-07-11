@@ -26,6 +26,7 @@ void enableRawMode();
 void disableRawMode();
 char editorReadKey();
 void editorProcessKeyPress();
+int getCursorPosition(int *row, int *cols);
 int getWindowSize(int * row, int *cols);
 
 /*** output ***/
@@ -102,6 +103,7 @@ char editorReadKey(){
     }
     return input;
 }
+
 void editorProcessKeyPress(){
     char input = editorReadKey();
 
@@ -116,11 +118,41 @@ void editorProcessKeyPress(){
     }
 }
 
+int getCursorPosition(int *row, int *cols) {
+    if(write(STDOUT_FILENO, "\x1b[6b", 4) != 4){
+        return -1;
+    }
+
+    printf("\r\n");
+    char c;
+
+    while(read(STDIN_FILENO, &c, 1) == 1){
+        if(iscntrl(c)){
+            printf("%d\r\n", c);
+        } else {
+            printf("%d ('%c')\r\n", c, c);
+        }
+    }
+    editorReadKey();
+
+    return -1;
+
+}
+
 int getWindowSize(int *rows, int *cols){
     struct winsize ws;
 
-    if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
-        return -1;
+    // If we can't for some reason find screen resolution, or get some wonky
+    // value try moving the cursor to the bottom right else set rows and cols
+    // accordingly
+    if(1 || ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
+        // If we fail to process 12 bites return -1
+        // 999C and 999B mean go as far right and as far down as you can
+        if(write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12){
+            return -1; 
+        }
+        // Return result of cursor position  after setting it to bottom right
+        return getCursorPosition(row, cols);
     } else {
         *cols = ws.ws_col;
         *rows = ws.ws_row;
