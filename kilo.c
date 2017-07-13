@@ -1,5 +1,7 @@
 /*** include ***/
+
 #include <ctype.h>
+#include <string.h>
 #include <stdio.h>
 #include <errno.h>
 #include <sys/ioctl.h>
@@ -19,6 +21,18 @@ struct editorConfig {
     struct termios orig_termios;
 };
 
+/*** types ***/
+// Append buffer
+// change name to be slightly more meaningful, we're not code golfing this
+struct abuf {
+    char *buf;
+    int len;
+};
+
+// Constructor for our append buffer
+#define ABUF_INIT {NULL, 0}
+
+
 struct editorConfig CONFIG;
 
 /*** terminal ***/
@@ -28,6 +42,8 @@ char editorReadKey();
 void editorProcessKeyPress();
 int getCursorPosition(int *rows, int *cols);
 int getWindowSize(int * rows, int *cols);
+void abAppend(struct abuf *ab, const char* string, int len);
+void abFree(struct abuf *ab);
 
 /*** output ***/
 void editorRefreshScreen();
@@ -179,28 +195,65 @@ int getWindowSize(int *rows, int *cols){
     }
 }
 
+/*** append buffer ***/
+// appendbuffer append
+void abAppend(struct abuf *ab, const char* string, int len) {
+    // ab = append buffer to add string to
+    // string = string to copy
+    // len = length
+
+    // increase the size of our append buffer to be the length of ab + new string length 
+    char *new = realloc(ab->buf, ab->len + len);
+
+    // error out
+    if (new == NULL) return;
+
+    // copy string into new buffer starting at end of buffer
+    memcpy(&new[ab->len], string, len);
+    
+    ab->buf = new;
+    ab->len += len;
+}
+
+// append buffer free
+void abFree(struct abuf *ab){
+    free(ab->b);
+}
+
+
 /*** output ***/
+void editorDrawRows(struct abuf *ab){
+    int y;
+    for(y = 0; y < CONFIG.screenrows; y++){
+        // For each row add ~\r\n to the string
+        abAppend(ab,"~", 1);
+
+        if ( y < CONFIG.screenrows - 1){
+            abAppend(ab, "\r\n", 2);
+        }
+    }
+}
+
 void editorRefreshScreen(){
+    
+    struct abuf ab = ABUF_INIT;
+
     // Write four bytes to terminal
     // \x1b = escape character (27)
     // [J = erase screeen
     // [J2 = clear entire screen
-    write(STDOUT_FILENO, "\x1b[2J", 4);
-    write(STDOUT_FILENO, "\x1b[H", 3);
-    editorDrawRows();
+    abAppend(&ab, "\x1b[2J", 4);
+    abAppend(&ab, "\x1b[H", 3);
+
+    editorDrawRows(&ab);
     
     //[H = reposition cursor to (1,1)
     // (1,1) default args
-    write(STDOUT_FILENO, "\x1b[H", 3);
-}
+    abAppend(&ab, "\x1b[H", 3);
 
-void editorDrawRows(){
-    int y;
-    for(y = 0; y < CONFIG.screenrows; y++){
-        write(STDOUT_FILENO, "~\r\n", 3);
-    }
+    wire(STDOUT_FILENO, ab.b, ab.len);
+    abFree(&ab);
 }
-
 /*** init ***/
 void initEditor(){
     if(getWindowSize(&CONFIG.screenrows, &CONFIG.screencols) == -1){
