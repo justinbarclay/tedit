@@ -229,6 +229,8 @@ void editorDrawRows(struct abuf *ab){
         // For each row add ~\r\n to the string
         abAppend(ab,"~", 1);
 
+        // K erases part of current line
+        abAppend(&ab, "\x1b[K", 3);
         if ( y < CONFIG.screenrows - 1){
             abAppend(ab, "\r\n", 2);
         }
@@ -247,7 +249,6 @@ void editorRefreshScreen(){
     // \x1b = escape character (27)
     // [J = erase screeen
     // [J2 = clear entire screen
-    abAppend(&ab, "\x1b[2J", 4);
     abAppend(&ab, "\x1b[H", 3);
 
     editorDrawRows(&ab);
