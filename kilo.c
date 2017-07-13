@@ -12,10 +12,11 @@
 
 /*** defines ***/
 #define CTRL_KEY(k) ((k) & 0x1f) // Binary & operation
-
+#define KILO_VERSION "0.0.1"
 
 /*** data ***/
 struct editorConfig {
+    int cx, cy; //cursor x, cursor y
     int screenrows;
     int screencols;
     struct termios orig_termios;
@@ -50,6 +51,9 @@ void abFree(struct abuf *ab);
 /*** output ***/
 void editorRefreshScreen();
 void editorDrawRows(struct abuf *ab);
+
+/*** input ***/
+void editorMoveCursor(char key);
 
 /*** init ***/
 void initEditor();
@@ -115,9 +119,33 @@ void die(const char *s){
 char editorReadKey(){
     int nread;
     char input;
-
+    
     while((nread = read(STDIN_FILENO, &input, 1)) != 1) {
-        if(nread == -1 && errno != EAGAIN) die("read");
+        if(nread == -1 && errno != EAGAIN) {
+            die("read");
+        }
+    }
+
+    // '\x1b' = 27
+    if(input == '\x1b'){
+        char seq[3];
+        //??
+        if (read(STDIN_FILENO, &seq[0], 1) != 1){
+            return '\x1b';
+        }
+
+        if (read(STDIN_FILENO, &seq[1], 1) != 1){
+            return '\x1b';
+        }
+
+        if(seq[0] == '['){
+            switch (seq[1]) {
+                case 'A': return 'w';
+                case 'B': return 's';
+                case 'C': return 'd';
+                case 'D': return 'a';
+            }
+        }
     }
     return input;
 }
@@ -133,6 +161,13 @@ void editorProcessKeyPress(){
             write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
             break;
+
+    case 'w':
+    case 's':
+    case 'a':
+    case 'd':
+      editorMoveCursor(input);
+      break;
     }
 }
 
@@ -157,6 +192,7 @@ int getCursorPosition(int *rows, int *cols) {
 
         i++;
     }
+
     // Null terminate buffer
     buf[i] = '\0';
 
@@ -226,11 +262,23 @@ void abFree(struct abuf *ab){
 void editorDrawRows(struct abuf *ab){
     int y;
     for(y = 0; y < CONFIG.screenrows; y++){
-        // For each row add ~\r\n to the string
-        abAppend(ab,"~", 1);
 
+        // Put welcome message in top third of screen
+        if( y== CONFIG.screenrows / 3) {
+            char welcome[80];
+            int welcomelen = snprintf(welcome, sizeof(welcome), "Kilo editor -- version %s", KILO_VERSION);
+
+            // truncate message if screen too short
+            if(welcomelen > CONFIG.screencols) {
+                welcomelen = CONFIG.screencols;
+            } 
+            abAppend(ab, welcome, welcomelen);
+        } else {
+            // For each row add ~\r\n to the string
+            abAppend(ab,"~", 1);
+        }
         // K erases part of current line
-        abAppend(&ab, "\x1b[K", 3);
+        abAppend(ab, "\x1b[K", 3);
         if ( y < CONFIG.screenrows - 1){
             abAppend(ab, "\r\n", 2);
         }
@@ -252,11 +300,12 @@ void editorRefreshScreen(){
     abAppend(&ab, "\x1b[H", 3);
 
     editorDrawRows(&ab);
-    
-    //[H = reposition cursor to (1,1)
-    // (1,1) default args
-    abAppend(&ab, "\x1b[H", 3);
 
+
+    char buf[32];
+    // Specify the exact position in the terminal the cursor should move to
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", CONFIG.cy + 1, CONFIG.cx + 1);
+    abAppend(&ab, buf, strlen(buf));
     
     // h = turn on
     // ?25 = cursor
@@ -264,8 +313,29 @@ void editorRefreshScreen(){
     write(STDOUT_FILENO, ab.buf, ab.len);
     abFree(&ab);
 }
+
+/*** input ***/
+void editorMoveCursor(char key){
+    switch(key) {
+        
+    case 'a':
+        CONFIG.cx--;
+        break;
+    case 'd':
+        CONFIG.cx++;
+        break;
+    case 'w':
+        CONFIG.cy--;
+        break;
+    case 's':
+        CONFIG.cy++;
+        break;
+    }    
+}
 /*** init ***/
 void initEditor(){
+    CONFIG.cx = 0;
+    CONFIG.cy = 0;
     if(getWindowSize(&CONFIG.screenrows, &CONFIG.screencols) == -1){
         die("getWindowsize");
     }
