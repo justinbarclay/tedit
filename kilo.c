@@ -42,12 +42,14 @@ char editorReadKey();
 void editorProcessKeyPress();
 int getCursorPosition(int *rows, int *cols);
 int getWindowSize(int * rows, int *cols);
+
+/** append buffer ***/
 void abAppend(struct abuf *ab, const char* string, int len);
 void abFree(struct abuf *ab);
 
 /*** output ***/
 void editorRefreshScreen();
-void editorDrawRows();
+void editorDrawRows(struct abuf *ab);
 
 /*** init ***/
 void initEditor();
@@ -170,7 +172,6 @@ int getCursorPosition(int *rows, int *cols) {
     }
 
     return 0;
-
 }
 
 int getWindowSize(int *rows, int *cols){
@@ -217,7 +218,7 @@ void abAppend(struct abuf *ab, const char* string, int len) {
 
 // append buffer free
 void abFree(struct abuf *ab){
-    free(ab->b);
+    free(ab->buf);
 }
 
 
@@ -238,6 +239,10 @@ void editorRefreshScreen(){
     
     struct abuf ab = ABUF_INIT;
 
+    // l = turn off
+    // ?25 = cursor
+    abAppend(&ab, "\x1b[?25l", 6);
+    
     // Write four bytes to terminal
     // \x1b = escape character (27)
     // [J = erase screeen
@@ -251,7 +256,11 @@ void editorRefreshScreen(){
     // (1,1) default args
     abAppend(&ab, "\x1b[H", 3);
 
-    wire(STDOUT_FILENO, ab.b, ab.len);
+    
+    // h = turn on
+    // ?25 = cursor
+    abAppend(&ab, "\x1b[?25h]", 6);
+    write(STDOUT_FILENO, ab.buf, ab.len);
     abFree(&ab);
 }
 /*** init ***/
