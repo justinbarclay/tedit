@@ -11,9 +11,16 @@
 
 
 /*** defines ***/
-#define CTRL_KEY(k) ((k) & 0x1f) // Binary & operation
 #define KILO_VERSION "0.0.1"
 
+#define CTRL_KEY(k) ((k) & 0x1f) // Binary & operation
+
+enum editorKey {
+    ARROW_LEFT = 1000,
+    ARROW_RIGHT,
+    ARROW_UP,
+    ARROW_DOWN
+};
 /*** data ***/
 struct editorConfig {
     int cx, cy; //cursor x, cursor y
@@ -39,21 +46,22 @@ struct editorConfig CONFIG;
 /*** terminal ***/
 void enableRawMode();
 void disableRawMode();
-char editorReadKey();
+int editorReadKey();
 void editorProcessKeyPress();
 int getCursorPosition(int *rows, int *cols);
 int getWindowSize(int * rows, int *cols);
 
+
 /** append buffer ***/
 void abAppend(struct abuf *ab, const char* string, int len);
 void abFree(struct abuf *ab);
-
+//thing
 /*** output ***/
 void editorRefreshScreen();
 void editorDrawRows(struct abuf *ab);
 
 /*** input ***/
-void editorMoveCursor(char key);
+void editorMoveCursor(int key);
 
 /*** init ***/
 void initEditor();
@@ -77,7 +85,7 @@ int main(int argc, char *argv[]) {
 
 /*** terminal ***/
 void enableRawMode(){
-    
+
     if(tcgetattr(STDIN_FILENO, &CONFIG.orig_termios) == -1){
         die("tcsetattr");
     }
@@ -116,10 +124,10 @@ void die(const char *s){
     exit(1);
 }
 
-char editorReadKey(){
+int editorReadKey(){
     int nread;
     char input;
-    
+
     while((nread = read(STDIN_FILENO, &input, 1)) != 1) {
         if(nread == -1 && errno != EAGAIN) {
             die("read");
@@ -140,10 +148,10 @@ char editorReadKey(){
 
         if(seq[0] == '['){
             switch (seq[1]) {
-                case 'A': return 'w';
-                case 'B': return 's';
-                case 'C': return 'd';
-                case 'D': return 'a';
+                case 'A': return ARROW_UP;
+                case 'B': return ARROW_DOWN;
+                case 'C': return ARROW_RIGHT;
+                case 'D': return ARROW_LEFT;
             }
         }
     }
@@ -151,21 +159,21 @@ char editorReadKey(){
 }
 
 void editorProcessKeyPress(){
-    char input = editorReadKey();
+    int input = editorReadKey();
 
     switch(input){
         case CTRL_KEY('q'):
-            
+
             // Clear screen and exit on quit
             write(STDOUT_FILENO, "\x1b[2J", 4);
             write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
             break;
 
-    case 'w':
-    case 's':
-    case 'a':
-    case 'd':
+    case ARROW_UP:
+    case ARROW_DOWN:
+    case ARROW_LEFT:
+    case ARROW_RIGHT:
       editorMoveCursor(input);
       break;
     }
@@ -174,7 +182,7 @@ void editorProcessKeyPress(){
 int getCursorPosition(int *rows, int *cols) {
     char buf[32];
     unsigned int i = 0;
-    
+
     // Esc + get argument 6 of Device Status Report
     // if we didn't write 4 bytes, error
     if(write(STDOUT_FILENO, "\x1b[6n", 4) != 4){
@@ -220,14 +228,14 @@ int getWindowSize(int *rows, int *cols){
         // If we fail to process 12 bites return -1
         // 999C and 999B mean go as far right and as far down as you can
         if(write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12){
-            return -1; 
+            return -1;
         }
         // Return result of cursor position  after setting it to bottom right
         return getCursorPosition(rows, cols);
     } else {
         *cols = ws.ws_col;
         *rows = ws.ws_row;
-        
+
         return 0;
     }
 }
@@ -239,7 +247,7 @@ void abAppend(struct abuf *ab, const char* string, int len) {
     // string = string to copy
     // len = length
 
-    // increase the size of our append buffer to be the length of ab + new string length 
+    // increase the size of our append buffer to be the length of ab + new string length
     char *new = realloc(ab->buf, ab->len + len);
 
     // error out
@@ -247,7 +255,7 @@ void abAppend(struct abuf *ab, const char* string, int len) {
 
     // copy string into new buffer starting at end of buffer
     memcpy(&new[ab->len], string, len);
-    
+
     ab->buf = new;
     ab->len += len;
 }
@@ -271,7 +279,7 @@ void editorDrawRows(struct abuf *ab){
             // truncate message if screen too short
             if(welcomelen > CONFIG.screencols) {
                 welcomelen = CONFIG.screencols;
-            } 
+            }
             abAppend(ab, welcome, welcomelen);
         } else {
             // For each row add ~\r\n to the string
@@ -286,13 +294,13 @@ void editorDrawRows(struct abuf *ab){
 }
 
 void editorRefreshScreen(){
-    
+
     struct abuf ab = ABUF_INIT;
 
     // l = turn off
     // ?25 = cursor
     abAppend(&ab, "\x1b[?25l", 6);
-    
+
     // Write four bytes to terminal
     // \x1b = escape character (27)
     // [J = erase screeen
@@ -306,7 +314,7 @@ void editorRefreshScreen(){
     // Specify the exact position in the terminal the cursor should move to
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH", CONFIG.cy + 1, CONFIG.cx + 1);
     abAppend(&ab, buf, strlen(buf));
-    
+
     // h = turn on
     // ?25 = cursor
     abAppend(&ab, "\x1b[?25h]", 6);
@@ -315,22 +323,22 @@ void editorRefreshScreen(){
 }
 
 /*** input ***/
-void editorMoveCursor(char key){
+void editorMoveCursor(int key){
     switch(key) {
-        
-    case 'a':
+
+    case ARROW_LEFT:
         CONFIG.cx--;
         break;
-    case 'd':
+    case ARROW_RIGHT:
         CONFIG.cx++;
         break;
-    case 'w':
+    case ARROW_UP:
         CONFIG.cy--;
         break;
-    case 's':
+    case ARROW_DOWN:
         CONFIG.cy++;
         break;
-    }    
+    }
 }
 /*** init ***/
 void initEditor(){
