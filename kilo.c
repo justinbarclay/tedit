@@ -1,3 +1,5 @@
+//
+
 /*** include ***/
 
 #include <ctype.h>
@@ -19,8 +21,14 @@ enum editorKey {
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
     ARROW_UP,
-    ARROW_DOWN
+    ARROW_DOWN,
+    DEL_KEY,
+    HOME_KEY,
+    END_KEY,
+    PAGE_UP,
+    PAGE_DOWN
 };
+
 /*** data ***/
 struct editorConfig {
     int cx, cy; //cursor x, cursor y
@@ -147,15 +155,41 @@ int editorReadKey(){
         }
 
         if(seq[0] == '['){
-            switch (seq[1]) {
-                case 'A': return ARROW_UP;
-                case 'B': return ARROW_DOWN;
-                case 'C': return ARROW_RIGHT;
-                case 'D': return ARROW_LEFT;
+            if(seq[1] >= '0' && seq[1] <= '9'){
+                if(read(STDIN_FILENO, &seq[2], 1) !=1){
+                    return '\x1b';
+                }
+                if(seq[2] == '~'){
+                    switch (seq[1]){
+                        case '1': return HOME_KEY;
+                        case '3': return DEL_KEY;
+                        case '4': return END_KEY;
+                        case '5': return PAGE_UP;
+                        case '6': return PAGE_UP;
+                        case '7': return HOME_KEY;
+                        case '8': return END_KEY;
+                    }
+                }
+            } else {
+                switch (seq[1]) {
+                    case 'A': return ARROW_UP;
+                    case 'B': return ARROW_DOWN;
+                    case 'C': return ARROW_RIGHT;
+                    case 'D': return ARROW_LEFT;
+                    case 'H': return HOME_KEY;
+                    case 'F': return END_KEY;
+                }
+            }
+        } else if (seq[0] == '0'){
+            switch(seq[1]){
+                case 'H': return HOME_KEY;
+                case 'F': return END_KEY;
             }
         }
+        return '\x1b';
+    } else {
+        return input;
     }
-    return input;
 }
 
 void editorProcessKeyPress(){
@@ -170,13 +204,30 @@ void editorProcessKeyPress(){
             exit(0);
             break;
 
-    case ARROW_UP:
-    case ARROW_DOWN:
-    case ARROW_LEFT:
-    case ARROW_RIGHT:
-      editorMoveCursor(input);
-      break;
-    }
+        case HOME_KEY:
+            CONFIG.cx =0;
+            break;
+        case END_KEY:
+            CONFIG.cx = CONFIG.screencols - 1;
+            break;
+
+        case PAGE_UP:
+        case PAGE_DOWN:
+            {
+                int time = CONFIG.screenrows;
+                while(time--){
+                    editorMoveCursor(input == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+                }
+            }
+            break;
+
+        case ARROW_UP:
+        case ARROW_DOWN:
+        case ARROW_LEFT:
+        case ARROW_RIGHT:
+          editorMoveCursor(input);
+          break;
+        }
 }
 
 int getCursorPosition(int *rows, int *cols) {
