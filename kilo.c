@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <termios.h>
@@ -30,7 +31,7 @@ enum editorKey {
 };
 
 /*** data ***/
-
+//Editor row, counts size of chars and a buffer of chars
 typedef struct erow{
     int size;
     char* chars;
@@ -66,8 +67,10 @@ void editorProcessKeyPress();
 int getCursorPosition(int *rows, int *cols);
 int getWindowSize(int * rows, int *cols);
 
+/*** file i/o ***/
+void editorOpen();
 
-/** append buffer ***/
+/*** append buffer ***/
 void abAppend(struct abuf *ab, const char* string, int len);
 void abFree(struct abuf *ab);
 //thing
@@ -89,6 +92,8 @@ void die(const char *s);
 int main(int argc, char *argv[]) {
     enableRawMode();
     initEditor();
+    editorOpen();
+    
     // Read 1 byte at a time
     while(1){
         editorRefreshScreen();
@@ -100,7 +105,6 @@ int main(int argc, char *argv[]) {
 
 /*** terminal ***/
 void enableRawMode(){
-
     if(tcgetattr(STDIN_FILENO, &CONFIG.orig_termios) == -1){
         die("tcsetattr");
     }
@@ -298,6 +302,19 @@ int getWindowSize(int *rows, int *cols){
     }
 }
 
+/*** file i/o ***/
+void editorOpen(){
+    char* line = "Hello, world!";
+    ssize_t linelen = 13; // Why ssize_t?
+
+    CONFIG.row.size = linelen;
+    CONFIG.row.chars = malloc(linelen + 1);
+    memcpy(CONFIG.row.chars, line, linelen);
+
+    CONFIG.row.chars[linelen] = '\0';
+    CONFIG.numrows = 1;
+}
+
 /*** append buffer ***/
 // appendbuffer append
 void abAppend(struct abuf *ab, const char* string, int len) {
@@ -328,20 +345,36 @@ void abFree(struct abuf *ab){
 void editorDrawRows(struct abuf *ab){
     int y;
     for(y = 0; y < CONFIG.screenrows; y++){
-
         // Put welcome message in top third of screen
-        if( y== CONFIG.screenrows / 3) {
-            char welcome[80];
-            int welcomelen = snprintf(welcome, sizeof(welcome), "Kilo editor -- version %s", KILO_VERSION);
+        if (y >= CONFIG.numrows) {
+            if( y== CONFIG.screenrows / 3) {
+                char welcome[80];
+                int welcomelen = snprintf(welcome, sizeof(welcome), "Kilo editor -- version %s", KILO_VERSION);
+                
+                // /* TODO:  */runcate message if screen too short
+                if(welcomelen > CONFIG.screencols) {
+                    welcomelen = CONFIG.screencols;
+                }
 
-            // truncate message if screen too short
-            if(welcomelen > CONFIG.screencols) {
-                welcomelen = CONFIG.screencols;
+                int padding = (CONFIG.screencols - welcomelen) / 2;
+                if (padding) {
+                    abAppend(ab, "~", 1);
+                    padding--;
+                }
+                while (padding--) {
+                    abAppend(ab, " ", 1);
+                }
+                abAppend(ab, welcome, welcomelen);
+            } else {
+                // For each row add ~\r\n to the string
+                abAppend(ab,"~", 1);
             }
-            abAppend(ab, welcome, welcomelen);
         } else {
-            // For each row add ~\r\n to the string
-            abAppend(ab,"~", 1);
+            int len = CONFIG.row.size;
+            if(len > CONFIG.screencols){
+                len = CONFIG.screencols;
+            }
+            abAppend(ab,CONFIG.row.chars, len);
         }
         // K erases part of current line
         abAppend(ab, "\x1b[K", 3);
