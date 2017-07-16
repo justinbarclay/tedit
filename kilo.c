@@ -30,11 +30,19 @@ enum editorKey {
 };
 
 /*** data ***/
+
+typedef struct erow{
+    int size;
+    char* chars;
+} erow;
+
 struct editorConfig {
     int cx, cy; //cursor x, cursor y
     int screenrows;
     int screencols;
     struct termios orig_termios;
+    int numrows;
+    erow row;
 };
 
 /*** types ***/
@@ -44,7 +52,6 @@ struct abuf {
     char *buf;
     int len;
 };
-
 // Constructor for our append buffer
 #define ABUF_INIT {NULL, 0}
 
@@ -165,7 +172,7 @@ int editorReadKey(){
                         case '3': return DEL_KEY;
                         case '4': return END_KEY;
                         case '5': return PAGE_UP;
-                        case '6': return PAGE_UP;
+                        case '6': return PAGE_DOWN;
                         case '7': return HOME_KEY;
                         case '8': return END_KEY;
                     }
@@ -403,6 +410,8 @@ void editorMoveCursor(int key){
 void initEditor(){
     CONFIG.cx = 0;
     CONFIG.cy = 0;
+    CONFIG.numrows = 0;
+    
     if(getWindowSize(&CONFIG.screenrows, &CONFIG.screencols) == -1){
         die("getWindowsize");
     }
