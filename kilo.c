@@ -327,16 +327,24 @@ void editorMoveCursor(int key){
     switch(key) {
 
     case ARROW_LEFT:
-        CONFIG.cx--;
+        if (CONFIG.cx != 0){
+            CONFIG.cx--;
+        }
         break;
     case ARROW_RIGHT:
-        CONFIG.cx++;
+        if(CONFIG.cx != CONFIG.screencols - 1){
+            CONFIG.cx++;
+        }
         break;
     case ARROW_UP:
-        CONFIG.cy--;
+        if(CONFIG.cy != 0){
+            CONFIG.cy--;
+        }
         break;
     case ARROW_DOWN:
-        CONFIG.cy++;
+        if(CONFIG.cy != CONFIG.screenrows - 1){
+            CONFIG.cy++;
+        }
         break;
     }
 }
