@@ -39,6 +39,7 @@ typedef struct erow{
 
 struct editorConfig {
     int cx, cy; //cursor x, cursor y
+    int rowoff; // row offset, what rowoff of the file the user is currently on
     int screenrows;
     int screencols;
     int numrows;
@@ -373,10 +374,11 @@ void abFree(struct abuf *ab){
 void editorDrawRows(struct abuf *ab){
     int y;
     for(y = 0; y < CONFIG.screenrows; y++){
-        // Put welcome message in top third of screen
-        if (y >= CONFIG.numrows) {
+        int filerow = y + CONFIG.rowoff;
+        if (filerow >= CONFIG.numrows) {
+            // Put welcome message in top third of screen
             if(CONFIG.numrows ==0 && y== CONFIG.screenrows / 3) {
-                // If text buffer is empty, display editor info
+                // But only If text buffer is empty
                 char welcome[80];
                 int welcomelen = snprintf(welcome, sizeof(welcome), "Kilo editor -- version %s", KILO_VERSION);
                 
@@ -399,11 +401,11 @@ void editorDrawRows(struct abuf *ab){
                 abAppend(ab,"~", 1);
             }
         } else {
-            int len = CONFIG.row[y].size; //Handle multiple rows
+            int len = CONFIG.row[filerow].size; //Handle multiple rows
             if(len > CONFIG.screencols){
                 len = CONFIG.screencols;
             }
-            abAppend(ab,CONFIG.row[y].chars, len);
+            abAppend(ab,CONFIG.row[filerow].chars, len);
         }
         // K erases part of current line
         abAppend(ab, "\x1b[K", 3);
@@ -471,6 +473,7 @@ void editorMoveCursor(int key){
 void initEditor(){
     CONFIG.cx = 0;
     CONFIG.cy = 0;
+    CONFIG.rowoff = 0;
     CONFIG.numrows = 0;
     CONFIG.row = NULL;
     
