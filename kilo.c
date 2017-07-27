@@ -1,4 +1,4 @@
-//
+// http://viewsourcecode.org/snaptoken/kilo/04.aTextViewer.html step 60
 
 /*** include ***/
 
@@ -367,11 +367,12 @@ void editorDrawRows(struct abuf *ab){
     for(y = 0; y < CONFIG.screenrows; y++){
         // Put welcome message in top third of screen
         if (y >= CONFIG.numrows) {
-            if( y== CONFIG.screenrows / 3) {
+            if(CONFIG.numrows ==0 && y== CONFIG.screenrows / 3) {
+                // If text buffer is empty, display editor info
                 char welcome[80];
                 int welcomelen = snprintf(welcome, sizeof(welcome), "Kilo editor -- version %s", KILO_VERSION);
                 
-                // /* TODO:  */runcate message if screen too short
+                // /* TODO:  *truncate message if screen too short
                 if(welcomelen > CONFIG.screencols) {
                     welcomelen = CONFIG.screencols;
                 }
