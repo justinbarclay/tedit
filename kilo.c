@@ -68,7 +68,7 @@ int getCursorPosition(int *rows, int *cols);
 int getWindowSize(int * rows, int *cols);
 
 /*** file i/o ***/
-void editorOpen();
+void editorOpen(char* filename);
 
 /*** append buffer ***/
 void abAppend(struct abuf *ab, const char* string, int len);
@@ -92,7 +92,10 @@ void die(const char *s);
 int main(int argc, char *argv[]) {
     enableRawMode();
     initEditor();
-    editorOpen();
+
+    if(argc >= 2){
+        editorOpen(argv[1]); // pass in the first argument as a filename
+    }
     
     // Read 1 byte at a time
     while(1){
@@ -303,16 +306,33 @@ int getWindowSize(int *rows, int *cols){
 }
 
 /*** file i/o ***/
-void editorOpen(){
-    char* line = "Hello, world!";
-    ssize_t linelen = 13; // Why ssize_t?
+void editorOpen(char* filename){
+    FILE *fp = fopen(filename, "r");
 
-    CONFIG.row.size = linelen;
-    CONFIG.row.chars = malloc(linelen + 1);
-    memcpy(CONFIG.row.chars, line, linelen);
+    if(!fp){
+        die("fopen");
+    }
 
-    CONFIG.row.chars[linelen] = '\0';
-    CONFIG.numrows = 1;
+    char* line = NULL;
+    size_t linecap = 0;
+    ssize_t linelen; // Why ssize_t?
+    linelen = getline(&line, &linecap, fp);
+    
+    if(linelen != -1) {
+        while(linelen > 0 && (line[linelen - 1] == '\n' ||
+                              line[linelen - 1] == '\r')){
+            linelen--;
+        }
+        CONFIG.row.size = linelen;
+        CONFIG.row.chars = malloc(linelen + 1);
+
+        memcpy(CONFIG.row.chars, line, linelen);
+        CONFIG.row.chars[linelen] = '\0';
+        CONFIG.numrows = 1;
+    }
+
+    free(line);
+    fclose(fp);
 }
 
 /*** append buffer ***/
