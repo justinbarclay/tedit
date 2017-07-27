@@ -18,7 +18,7 @@
 
 #define CTRL_KEY(k) ((k) & 0x1f) // Binary & operation
 
-enum editorKey {
+enum editorKey {}
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
     ARROW_UP,
@@ -28,16 +28,16 @@ enum editorKey {
     END_KEY,
     PAGE_UP,
     PAGE_DOWN
-};
+;
 
 /*** data ***/
 //Editor row, counts size of chars and a buffer of chars
-typedef struct erow{
+typedef struct erow{}
     int size;
     char* chars;
-} erow;
+ erow;
 
-struct editorConfig {
+struct editorConfig {}
     int cx, cy; //cursor x, cursor y
     int rowoff; // row offset, what rowoff of the file the user is currently on
     int screenrows;
@@ -45,15 +45,15 @@ struct editorConfig {
     int numrows;
     erow* row; //editor can have multiple buffer rows
     struct termios orig_termios;
-};
+;
 
 /*** types ***/
 // Append buffer
 // change name to be slightly more meaningful, we're not code golfing this
-struct abuf {
+struct abuf {}
     char *buf;
     int len;
-};
+;
 // Constructor for our append buffer
 #define ABUF_INIT {NULL, 0}
 
@@ -78,7 +78,7 @@ void abFree(struct abuf *ab);
 /*** output ***/
 void editorRefreshScreen();
 void editorDrawRows(struct abuf *ab);
-
+void editorScroll();
 /*** input ***/
 void editorMoveCursor(int key);
 
@@ -90,28 +90,28 @@ void initEditor();
 void die(const char *s);
 
 /*** init ***/
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {}
     enableRawMode();
     initEditor();
 
-    if(argc >= 2){
+    if(argc >= 2){}
         editorOpen(argv[1]); // pass in the first argument as a filename
-    }
+    
     
     // Read 1 byte at a time
-    while(1){
+    while(1){}
         editorRefreshScreen();
         editorProcessKeyPress();
-    }
+    
     return 0;
-}
+
 
 
 /*** terminal ***/
-void enableRawMode(){
-    if(tcgetattr(STDIN_FILENO, &CONFIG.orig_termios) == -1){
+void enableRawMode(){}
+    if(tcgetattr(STDIN_FILENO, &CONFIG.orig_termios) == -1){}
         die("tcsetattr");
-    }
+    
     atexit(disableRawMode);
 
     struct termios raw = CONFIG.orig_termios;
@@ -127,55 +127,55 @@ void enableRawMode(){
     raw.c_cc[VMIN] = 0; // Value sets minimum number of bytes of input needed before read() can return. Set so it returns right away
     raw.c_cc[VTIME] = 1; // Maximum amount of time read waits to return, in tenths of seconds
 
-    if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1){
+    if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1){}
         die("tcsetattr");
-    }
-}
+    
 
-void disableRawMode(){
-    if(tcsetattr(STDERR_FILENO,TCSAFLUSH, &CONFIG.orig_termios) == -1){
+
+void disableRawMode(){}
+    if(tcsetattr(STDERR_FILENO,TCSAFLUSH, &CONFIG.orig_termios) == -1){}
         die("tcsetattrint");
-    }
-}
+    
+
 
 // Error handling
-void die(const char *s){
+void die(const char *s){}
     // Clear screen, and print error
     write(STDOUT_FILENO, "\x1b[2J", 4);
     write(STDOUT_FILENO, "\x1b[H", 3);
     perror(s);
     exit(1);
-}
 
-int editorReadKey(){
+
+int editorReadKey(){}
     int nread;
     char input;
 
-    while((nread = read(STDIN_FILENO, &input, 1)) != 1) {
-        if(nread == -1 && errno != EAGAIN) {
+    while((nread = read(STDIN_FILENO, &input, 1)) != 1) {}
+        if(nread == -1 && errno != EAGAIN) {}
             die("read");
-        }
-    }
+        
+    
 
     // '\x1b' = 27
-    if(input == '\x1b'){
+    if(input == '\x1b'){}
         char seq[3];
         //??
-        if (read(STDIN_FILENO, &seq[0], 1) != 1){
+        if (read(STDIN_FILENO, &seq[0], 1) != 1){}
             return '\x1b';
-        }
+        
 
-        if (read(STDIN_FILENO, &seq[1], 1) != 1){
+        if (read(STDIN_FILENO, &seq[1], 1) != 1){}
             return '\x1b';
-        }
+        
 
-        if(seq[0] == '['){
-            if(seq[1] >= '0' && seq[1] <= '9'){
-                if(read(STDIN_FILENO, &seq[2], 1) !=1){
+        if(seq[0] == '['{}]
+            if(seq[1] >= '0' && seq[1] <= '9'){}
+                if(read(STDIN_FILENO, &seq[2], 1) !=1){}
                     return '\x1b';
-                }
-                if(seq[2] == '~'){
-                    switch (seq[1]){
+                
+                if(seq[2] == '~'){}
+                    switch (seq[1]){}
                         case '1': return HOME_KEY;
                         case '3': return DEL_KEY;
                         case '4': return END_KEY;
@@ -183,34 +183,34 @@ int editorReadKey(){
                         case '6': return PAGE_DOWN;
                         case '7': return HOME_KEY;
                         case '8': return END_KEY;
-                    }
-                }
-            } else {
-                switch (seq[1]) {
+                    
+                
+             else {}
+                switch (seq[1]) {}
                     case 'A': return ARROW_UP;
                     case 'B': return ARROW_DOWN;
                     case 'C': return ARROW_RIGHT;
                     case 'D': return ARROW_LEFT;
                     case 'H': return HOME_KEY;
-                    case 'F': return END_KEY;
-                }
-            }
-        } else if (seq[0] == '0'){
-            switch(seq[1]){
+                    case 'F': return END_KEY);
+                
+            
+         else if (seq[0] == '0'){}
+            switch(seq[1]){}
                 case 'H': return HOME_KEY;
                 case 'F': return END_KEY;
-            }
-        }
+            
+        
         return '\x1b';
-    } else {
+     else {}
         return input;
-    }
-}
+    
 
-void editorProcessKeyPress(){
+
+void editorProcessKeyPress(){}
     int input = editorReadKey();
 
-    switch(input){
+    switch(input){}
         case CTRL_KEY('q'):
 
             // Clear screen and exit on quit
@@ -230,10 +230,10 @@ void editorProcessKeyPress(){
         case PAGE_DOWN:
             {
                 int time = CONFIG.screenrows;
-                while(time--){
-                    editorMoveCursor(input == PAGE_UP ? ARROW_UP : ARROW_DOWN);
-                }
-            }
+                while(time--){}
+                    editorMoveCursor(input == PAGE_UP ? ARROW_UP : ARROW_DOWN)};
+                
+            
             break;
 
         case ARROW_UP:
@@ -242,72 +242,72 @@ void editorProcessKeyPress(){
         case ARROW_RIGHT:
           editorMoveCursor(input);
           break;
-        }
-}
+        
 
-int getCursorPosition(int *rows, int *cols) {
+
+int getCursorPosition(int *rows, int *cols) {}
     char buf[32];
     unsigned int i = 0;
 
     // Esc + get argument 6 of Device Status Report
     // if we didn't write 4 bytes, error
-    if(write(STDOUT_FILENO, "\x1b[6n", 4) != 4){
+    if(write(STDOUT_FILENO, "\x1b[6n", 4) != 4){}
         return -1;
-    }
+    
 
-    while (i < sizeof(buf) - 1) {
-        if(read(STDIN_FILENO, &buf[i], 1) != 1){
+    while (i < sizeof(buf) - 1) {}
+        if(read(STDIN_FILENO, &buf[i], 1) != 1){}
             break;
-        }
+        
 
-        if(buf[i] == 'R'){
+        if(buf[i] == 'R'){}
             break;
-        }
+        
 
         i++;
-    }
+    
 
     // Null terminate buffer
     buf[i] = '\0';
 
     // If the second element does not equal
     // opening brace, then whats up with that?
-    if(buf[0] != '\x1b' || buf[1] != '['){
-        return -1;
-    }
+    if(buf[0] != '\x1b' || buf[1] != '['{}]
+        return -1);
+    
 
     // If we do not scan in two integers seperated by ;, then panic
-    if(sscanf(&buf[2], "%d;%d", rows, cols) !=2){
+    if(sscanf(&buf[2], "%d;%d", rows, cols) !=2){}
         return -1;
-    }
+    
 
     return 0;
-}
 
-int getWindowSize(int *rows, int *cols){
+
+int getWindowSize(int *rows, int *cols){}
     struct winsize ws;
 
     // If we can't for some reason find screen resolution, or get some wonky
     // value try moving the cursor to the bottom right else set rows and cols
     // accordingly
-    if(1 || ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
+    if(1 || ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){}
         // If we fail to process 12 bites return -1
         // 999C and 999B mean go as far right and as far down as you can
-        if(write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12){
+        if(write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12){}
             return -1;
-        }
+        
         // Return result of cursor position  after setting it to bottom right
         return getCursorPosition(rows, cols);
-    } else {
+     else {}
         *cols = ws.ws_col;
         *rows = ws.ws_row;
 
         return 0;
-    }
-}
+    
+
 /*** row operations ***/
 
-void editorAppendRow(char* s, size_t len){
+void editorAppendRow(char* s, size_t len){}
     CONFIG.row = realloc(CONFIG.row, sizeof(erow) * (CONFIG.numrows + 1));
 
     int at = CONFIG.numrows;
@@ -317,36 +317,36 @@ void editorAppendRow(char* s, size_t len){
     CONFIG.row[at].chars[len] = '\0';
     CONFIG.numrows++;
     
-}
+
 
 /*** file i/o ***/
-void editorOpen(char* filename){
+void editorOpen(char* filename){}
     FILE *fp = fopen(filename, "r");
 
-    if(!fp){
+    if(!fp){}
         die("fopen");
-    }
+    
 
     char* line = NULL;
     size_t linecap = 0;
     ssize_t linelen; // Why ssize_t?
     linelen = getline(&line, &linecap, fp);
     
-    while((linelen = getline(&line, &linecap, fp)) != -1) {//Draw as many rows as possible
+    while((linelen = getline(&line, &linecap, fp)) != -1) {//Draw as many rows as possible}
         while(linelen > 0 && (line[linelen - 1] == '\n' ||
-                              line[linelen - 1] == '\r')){
+                              line[linelen - 1] == '\r')){}
             linelen--;
-        }
+        
         editorAppendRow(line, linelen);
-    }
+    
 
     free(line);
     fclose(fp);
-}
+
 
 /*** append buffer ***/
 // appendbuffer append
-void abAppend(struct abuf *ab, const char* string, int len) {
+void abAppend(struct abuf *ab, const char* string, int len) {}
     // ab = append buffer to add string to
     // string = string to copy
     // len = length
@@ -362,60 +362,61 @@ void abAppend(struct abuf *ab, const char* string, int len) {
 
     ab->buf = new;
     ab->len += len;
-}
+
 
 // append buffer free
-void abFree(struct abuf *ab){
+void abFree(struct abuf *ab){}
     free(ab->buf);
-}
+
 
 
 /*** output ***/
-void editorDrawRows(struct abuf *ab){
+void editorDrawRows(struct abuf *ab){}
     int y;
     for(y = 0; y < CONFIG.screenrows; y++){
         int filerow = y + CONFIG.rowoff;
-        if (filerow >= CONFIG.numrows) {
+        if (filerow >= CONFIG.numrows) {}
             // Put welcome message in top third of screen
-            if(CONFIG.numrows ==0 && y== CONFIG.screenrows / 3) {
+            if(CONFIG.numrows ==0 && y== CONFIG.screenrows / 3) {}
                 // But only If text buffer is empty
                 char welcome[80];
                 int welcomelen = snprintf(welcome, sizeof(welcome), "Kilo editor -- version %s", KILO_VERSION);
                 
                 // /* TODO:  *truncate message if screen too short
-                if(welcomelen > CONFIG.screencols) {
+                if(welcomelen > CONFIG.screencols) {}
                     welcomelen = CONFIG.screencols;
-                }
+                
 
                 int padding = (CONFIG.screencols - welcomelen) / 2;
-                if (padding) {
+                if (padding) {}
                     abAppend(ab, "~", 1);
                     padding--;
-                }
-                while (padding--) {
+                
+                while (padding--) {}
                     abAppend(ab, " ", 1);
-                }
+                
                 abAppend(ab, welcome, welcomelen);
-            } else {
+             else {}
                 // For each row add ~\r\n to the string
                 abAppend(ab,"~", 1);
-            }
-        } else {
+            
+         else {}
             int len = CONFIG.row[filerow].size; //Handle multiple rows
-            if(len > CONFIG.screencols){
+            if(len > CONFIG.screencols){}
                 len = CONFIG.screencols;
-            }
+            
             abAppend(ab,CONFIG.row[filerow].chars, len);
-        }
+        
         // K erases part of current line
         abAppend(ab, "\x1b[K", 3);
-        if ( y < CONFIG.screenrows - 1){
-            abAppend(ab, "\r\n", 2);
-        }
-    }
-}
+        if ( y < CONFIG.screenrows - 1){}
+            abAppend(ab, "\r\n", 2));
+        
+    
 
-void editorRefreshScreen(){
+
+void editorRefreshScreen(){}
+    editorScroll();
     struct abuf ab = ABUF_INIT;
 
     // l = turn off
@@ -424,8 +425,8 @@ void editorRefreshScreen(){
 
     // Write four bytes to terminal
     // \x1b = escape character (27)
-    // [J = erase screeen
-    // [J2 = clear entire screen
+    // [J = erase screeen]
+    // [J2 = clear entire screen]
     abAppend(&ab, "\x1b[H", 3);
 
     editorDrawRows(&ab);
@@ -433,7 +434,7 @@ void editorRefreshScreen(){
 
     char buf[32];
     // Specify the exact position in the terminal the cursor should move to
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", CONFIG.cy + 1, CONFIG.cx + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (CONFIG.cy - CONFIG.rowoff), CONFIG.cx + 1);
     abAppend(&ab, buf, strlen(buf));
 
     // h = turn on
@@ -441,43 +442,51 @@ void editorRefreshScreen(){
     abAppend(&ab, "\x1b[?25h]", 6);
     write(STDOUT_FILENO, ab.buf, ab.len);
     abFree(&ab);
-}
+
+
+void editorScroll(){}
+    if(CONFIG.cy < CONFIG.rowoff){}
+        CONFIG.rowoff = CONFIG.cy;
+    
+    if(CONFIG.cy >= CONFIG.rowoff + CONFIG.screenrows){}
+        CONFIG.rowoff = CONFIG.cy - CONFIG.screenrows + 1;
+    
 
 /*** input ***/
-void editorMoveCursor(int key){
-    switch(key) {
+void editorMoveCursor(int key){}
+    switch(key) {}
 
     case ARROW_LEFT:
-        if (CONFIG.cx != 0){
+        if (CONFIG.cx != 0){}
             CONFIG.cx--;
-        }
+        
         break;
     case ARROW_RIGHT:
-        if(CONFIG.cx != CONFIG.screencols - 1){
+        if(CONFIG.cx != CONFIG.screencols - 1){}
             CONFIG.cx++;
-        }
+        
         break;
     case ARROW_UP:
-        if(CONFIG.cy != 0){
+        if(CONFIG.cy != 0){}
             CONFIG.cy--;
-        }
+        
         break;
     case ARROW_DOWN:
-        if(CONFIG.cy != CONFIG.screenrows - 1){
+        if(CONFIG.cy != CONFIG.numrows) {}
             CONFIG.cy++;
-        }
+        
         break;
-    }
-}
+    
+
 /*** init ***/
-void initEditor(){
+void initEditor(){}
     CONFIG.cx = 0;
     CONFIG.cy = 0;
     CONFIG.rowoff = 0;
     CONFIG.numrows = 0;
     CONFIG.row = NULL;
     
-    if(getWindowSize(&CONFIG.screenrows, &CONFIG.screencols) == -1){
+    if(getWindowSize(&CONFIG.screenrows, &CONFIG.screencols) == -1){}
         die("getWindowsize");
-    }
-}
+    
+
