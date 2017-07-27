@@ -41,9 +41,9 @@ struct editorConfig {
     int cx, cy; //cursor x, cursor y
     int screenrows;
     int screencols;
-    struct termios orig_termios;
     int numrows;
-    erow row;
+    erow* row; //editor can have multiple buffer rows
+    struct termios orig_termios;
 };
 
 /*** types ***/
@@ -304,6 +304,19 @@ int getWindowSize(int *rows, int *cols){
         return 0;
     }
 }
+/*** row operations ***/
+
+void editorAppendRow(char* s, size_t len){
+    CONFIG.row = realloc(CONFIG.row, sizeof(erow) * (CONFIG.numrows + 1));
+
+    int at = CONFIG.numrows;
+    CONFIG.row[at].size = len;
+    CONFIG.row[at].chars = malloc(len + 1);
+    memcpy(CONFIG.row[at].chars, s, len);
+    CONFIG.row[at].chars[len] = '\0';
+    CONFIG.numrows++;
+    
+}
 
 /*** file i/o ***/
 void editorOpen(char* filename){
@@ -318,17 +331,12 @@ void editorOpen(char* filename){
     ssize_t linelen; // Why ssize_t?
     linelen = getline(&line, &linecap, fp);
     
-    if(linelen != -1) {
+    while((linelen = getline(&line, &linecap, fp)) != -1) {//Draw as many rows as possible
         while(linelen > 0 && (line[linelen - 1] == '\n' ||
                               line[linelen - 1] == '\r')){
             linelen--;
         }
-        CONFIG.row.size = linelen;
-        CONFIG.row.chars = malloc(linelen + 1);
-
-        memcpy(CONFIG.row.chars, line, linelen);
-        CONFIG.row.chars[linelen] = '\0';
-        CONFIG.numrows = 1;
+        editorAppendRow(line, linelen);
     }
 
     free(line);
@@ -391,11 +399,11 @@ void editorDrawRows(struct abuf *ab){
                 abAppend(ab,"~", 1);
             }
         } else {
-            int len = CONFIG.row.size;
+            int len = CONFIG.row[y].size; //Handle multiple rows
             if(len > CONFIG.screencols){
                 len = CONFIG.screencols;
             }
-            abAppend(ab,CONFIG.row.chars, len);
+            abAppend(ab,CONFIG.row[y].chars, len);
         }
         // K erases part of current line
         abAppend(ab, "\x1b[K", 3);
@@ -406,7 +414,6 @@ void editorDrawRows(struct abuf *ab){
 }
 
 void editorRefreshScreen(){
-
     struct abuf ab = ABUF_INIT;
 
     // l = turn off
@@ -465,6 +472,7 @@ void initEditor(){
     CONFIG.cx = 0;
     CONFIG.cy = 0;
     CONFIG.numrows = 0;
+    CONFIG.row = NULL;
     
     if(getWindowSize(&CONFIG.screenrows, &CONFIG.screencols) == -1){
         die("getWindowsize");
