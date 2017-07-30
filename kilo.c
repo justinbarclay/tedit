@@ -40,6 +40,7 @@ typedef struct erow{
 struct editorConfig {
     int cx, cy; //cursor x, cursor y
     int rowoff; // row offset, what rowoff of the file the user is currently on
+    int coloff; // column offset
     int screenrows;
     int screencols;
     int numrows;
@@ -78,7 +79,7 @@ void abFree(struct abuf *ab);
 /*** output ***/
 void editorRefreshScreen();
 void editorDrawRows(struct abuf *ab);
-
+void editorScroll();
 /*** input ***/
 void editorMoveCursor(int key);
 
@@ -401,11 +402,16 @@ void editorDrawRows(struct abuf *ab){
                 abAppend(ab,"~", 1);
             }
         } else {
-            int len = CONFIG.row[filerow].size; //Handle multiple rows
+            int len = CONFIG.row[filerow].size - CONFIG.coloff; //Handle multiple rows
+            // because len can now be negative, need to be sure its min is 0
+            if(len < 0){
+                len = 0;
+            }
+            
             if(len > CONFIG.screencols){
                 len = CONFIG.screencols;
             }
-            abAppend(ab,CONFIG.row[filerow].chars, len);
+            abAppend(ab,CONFIG.row[filerow].chars[CONFIG.coloff], len);
         }
         // K erases part of current line
         abAppend(ab, "\x1b[K", 3);
@@ -416,6 +422,7 @@ void editorDrawRows(struct abuf *ab){
 }
 
 void editorRefreshScreen(){
+    editorScroll();
     struct abuf ab = ABUF_INIT;
 
     // l = turn off
@@ -433,7 +440,7 @@ void editorRefreshScreen(){
 
     char buf[32];
     // Specify the exact position in the terminal the cursor should move to
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", CONFIG.cy + 1, CONFIG.cx + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (CONFIG.cy + CONFIG.rowoff), CONFIG.cx + 1);
     abAppend(&ab, buf, strlen(buf));
 
     // h = turn on
@@ -441,6 +448,21 @@ void editorRefreshScreen(){
     abAppend(&ab, "\x1b[?25h]", 6);
     write(STDOUT_FILENO, ab.buf, ab.len);
     abFree(&ab);
+}
+
+void editorScroll() {
+  if (CONFIG.cy < CONFIG.rowoff) {
+    CONFIG.rowoff = CONFIG.cy;
+  }
+  if (CONFIG.cy >= CONFIG.rowoff + CONFIG.screenrows) {
+    CONFIG.rowoff = CONFIG.cy - CONFIG.screenrows + 1;
+  }
+  if(CONFIG.cx  < CONFIG.coloff){
+      CONFIG.coloff = CONFIG.cx;
+  }
+  if(CONFIG.cx >= CONFIG.coloff + CONFIG.screencols){
+      CONFIG.coloff = CONFIG.cx - CONFIG.screencols + 1;
+  }
 }
 
 /*** input ***/
@@ -453,9 +475,7 @@ void editorMoveCursor(int key){
         }
         break;
     case ARROW_RIGHT:
-        if(CONFIG.cx != CONFIG.screencols - 1){
-            CONFIG.cx++;
-        }
+        CONFIG.cx++;
         break;
     case ARROW_UP:
         if(CONFIG.cy != 0){
@@ -463,7 +483,7 @@ void editorMoveCursor(int key){
         }
         break;
     case ARROW_DOWN:
-        if(CONFIG.cy != CONFIG.screenrows - 1){
+        if(CONFIG.cy < CONFIG.numrows){
             CONFIG.cy++;
         }
         break;
@@ -474,6 +494,7 @@ void initEditor(){
     CONFIG.cx = 0;
     CONFIG.cy = 0;
     CONFIG.rowoff = 0;
+    CONFIG.coloff = 0;
     CONFIG.numrows = 0;
     CONFIG.row = NULL;
     
