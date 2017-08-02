@@ -15,6 +15,7 @@
 
 /*** defines ***/
 #define KILO_VERSION "0.0.1"
+#define KILO_TAB_STOP 8
 
 #define CTRL_KEY(k) ((k) & 0x1f) // Binary & operation
 
@@ -34,7 +35,9 @@ enum editorKey {
 //Editor row, counts size of chars and a buffer of chars
 typedef struct erow{
     int size;
+    int rsize;
     char* chars;
+    char* render;
 } erow;
 
 struct editorConfig {
@@ -76,10 +79,16 @@ void editorOpen(char* filename);
 void abAppend(struct abuf *ab, const char* string, int len);
 void abFree(struct abuf *ab);
 //thing
+
 /*** output ***/
 void editorRefreshScreen();
 void editorDrawRows(struct abuf *ab);
 void editorScroll();
+
+/*** row operations ***/
+void editorUpdateRow(erow *row);
+void editorAppendRow(char* s, size_t len);
+
 /*** input ***/
 void editorMoveCursor(int key);
 
@@ -306,7 +315,37 @@ int getWindowSize(int *rows, int *cols){
         return 0;
     }
 }
+
 /*** row operations ***/
+void editorUpdateRow(erow *row){
+    int tabs = 0;
+    int j;
+
+    for(j=0; j < row->size; j++){
+        if(row->chars[j] == '\t'){
+           tabs++;
+        }
+    }
+    
+    free(row->render);
+    row->render = malloc(row->size + tabs*(KILO_TAB_STOP -1) + 1);
+
+
+    int idx = 0;
+
+    for(j=0; j< row->size; j++){
+        if(row->chars[j] == '\t'){
+            while(idx % KILO_TAB_STOP != 0){
+                row -> render[idx++] = ' ';
+            }
+                
+        } else {
+            row->render[idx++] = row->chars[j];
+        }
+    }
+
+    row->render[idx] = '\0';
+}
 
 void editorAppendRow(char* s, size_t len){
     CONFIG.row = realloc(CONFIG.row, sizeof(erow) * (CONFIG.numrows + 1));
@@ -316,8 +355,12 @@ void editorAppendRow(char* s, size_t len){
     CONFIG.row[at].chars = malloc(len + 1);
     memcpy(CONFIG.row[at].chars, s, len);
     CONFIG.row[at].chars[len] = '\0';
+
+    CONFIG.row[at].rsize = 0;
+    CONFIG.row[at].render = NULL;
+    editorUpdateRow(&CONFIG.row[at]);
+
     CONFIG.numrows++;
-    
 }
 
 /*** file i/o ***/
@@ -437,7 +480,7 @@ void editorRefreshScreen(){
     editorDrawRows(&ab);
 
     char buf[32];
-    // Specify the exact position in the terminal the cursor should move to
+    // Specify the exact position in the terminal the cursor should be drawn atexit
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (CONFIG.cy + CONFIG.rowoff) + 1, (CONFIG.cx - CONFIG.coloff) + 1);
     abAppend(&ab, buf, strlen(buf));
 
@@ -472,15 +515,21 @@ void editorMoveCursor(int key){
     case ARROW_LEFT:
         if (CONFIG.cx != 0){
             CONFIG.cx--;
+        } else if (CONFIG.cy > 0){ // Go one row up and to the end of the line
+            CONFIG.cy--;
+            CONFIG.cx = CONFIG.row[CONFIG.cy].size;
         }
         break;
     case ARROW_RIGHT:
         if(row && CONFIG.cx < row->size){
             CONFIG.cx++;
+        } else if(row && CONFIG.cx == row->size){
+            CONFIG.cy++;
+            CONFIG.cx = 0;
         }
         break;
     case ARROW_UP:
-        if(CONFIG.cy != 0){
+        if(CONFIG.cy > 0){
             CONFIG.cy--;
         }
         break;
@@ -489,6 +538,13 @@ void editorMoveCursor(int key){
             CONFIG.cy++;
         }
         break;
+    }
+
+    row = (CONFIG.cy >= CONFIG.numrows) ? NULL : &CONFIG.row[CONFIG.cy];
+
+    int rowlen = row ? row->size : 0;
+    if(CONFIG.cx > rowlen){
+        CONFIG.cx = rowlen;
     }
 }
 /*** init ***/
