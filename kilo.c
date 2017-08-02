@@ -1,4 +1,4 @@
-// http://viewsourcecode.org/snaptoken/kilo/04.aTextViewer.html step 60
+// http://viewsourcecode.org/snaptoken/kilo/04.aTextViewer.html step 70
 
 /*** include ***/
 
@@ -331,8 +331,6 @@ void editorOpen(char* filename){
     char* line = NULL;
     size_t linecap = 0;
     ssize_t linelen; // Why ssize_t?
-    linelen = getline(&line, &linecap, fp);
-    
     while((linelen = getline(&line, &linecap, fp)) != -1) {//Draw as many rows as possible
         while(linelen > 0 && (line[linelen - 1] == '\n' ||
                               line[linelen - 1] == '\r')){
@@ -411,7 +409,8 @@ void editorDrawRows(struct abuf *ab){
             if(len > CONFIG.screencols){
                 len = CONFIG.screencols;
             }
-            abAppend(ab,CONFIG.row[filerow].chars[CONFIG.coloff], len);
+            // at filerow print as many characters, starting at offset as there is screensize or chars left
+            abAppend(ab, &CONFIG.row[filerow].chars[CONFIG.coloff], len);
         }
         // K erases part of current line
         abAppend(ab, "\x1b[K", 3);
@@ -437,10 +436,9 @@ void editorRefreshScreen(){
 
     editorDrawRows(&ab);
 
-
     char buf[32];
     // Specify the exact position in the terminal the cursor should move to
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (CONFIG.cy + CONFIG.rowoff), CONFIG.cx + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (CONFIG.cy + CONFIG.rowoff) + 1, (CONFIG.cx - CONFIG.coloff) + 1);
     abAppend(&ab, buf, strlen(buf));
 
     // h = turn on
@@ -467,6 +465,8 @@ void editorScroll() {
 
 /*** input ***/
 void editorMoveCursor(int key){
+    erow *row = (CONFIG.cy >= CONFIG.numrows) ? NULL : &CONFIG.row[CONFIG.cy];
+    
     switch(key) {
 
     case ARROW_LEFT:
@@ -475,7 +475,9 @@ void editorMoveCursor(int key){
         }
         break;
     case ARROW_RIGHT:
-        CONFIG.cx++;
+        if(row && CONFIG.cx < row->size){
+            CONFIG.cx++;
+        }
         break;
     case ARROW_UP:
         if(CONFIG.cy != 0){
