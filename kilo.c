@@ -42,6 +42,7 @@ typedef struct erow{
 
 struct editorConfig {
     int cx, cy; //cursor x, cursor y
+    int rx; // index into render field
     int rowoff; // row offset, what rowoff of the file the user is currently on
     int coloff; // column offset
     int screenrows;
@@ -481,7 +482,7 @@ void editorRefreshScreen(){
 
     char buf[32];
     // Specify the exact position in the terminal the cursor should be drawn atexit
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (CONFIG.cy + CONFIG.rowoff) + 1, (CONFIG.cx - CONFIG.coloff) + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (CONFIG.cy + CONFIG.rowoff) + 1, (CONFIG.rx - CONFIG.coloff) + 1);
     abAppend(&ab, buf, strlen(buf));
 
     // h = turn on
@@ -492,18 +493,20 @@ void editorRefreshScreen(){
 }
 
 void editorScroll() {
-  if (CONFIG.cy < CONFIG.rowoff) {
-    CONFIG.rowoff = CONFIG.cy;
-  }
-  if (CONFIG.cy >= CONFIG.rowoff + CONFIG.screenrows) {
-    CONFIG.rowoff = CONFIG.cy - CONFIG.screenrows + 1;
-  }
-  if(CONFIG.cx  < CONFIG.coloff){
-      CONFIG.coloff = CONFIG.cx;
-  }
-  if(CONFIG.cx >= CONFIG.coloff + CONFIG.screencols){
-      CONFIG.coloff = CONFIG.cx - CONFIG.screencols + 1;
-  }
+    CONFIG.rx = CONFIG.cx;
+    
+    if (CONFIG.cy < CONFIG.rowoff) {
+        CONFIG.rowoff = CONFIG.cy;
+    }
+    if (CONFIG.cy >= CONFIG.rowoff + CONFIG.screenrows) {
+        CONFIG.rowoff = CONFIG.cy - CONFIG.screenrows + 1;
+    }
+    if(CONFIG.rx  < CONFIG.coloff){
+        CONFIG.coloff = CONFIG.cx;
+    }
+    if(CONFIG.rx >= CONFIG.coloff + CONFIG.screencols){
+        CONFIG.coloff = CONFIG.cx - CONFIG.screencols + 1;
+    }
 }
 
 /*** input ***/
@@ -551,6 +554,7 @@ void editorMoveCursor(int key){
 void initEditor(){
     CONFIG.cx = 0;
     CONFIG.cy = 0;
+    CONFIG.rx = 0;
     CONFIG.rowoff = 0;
     CONFIG.coloff = 0;
     CONFIG.numrows = 0;
