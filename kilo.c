@@ -233,13 +233,24 @@ void editorProcessKeyPress(){
         case HOME_KEY:
             CONFIG.cx =0;
             break;
+            
         case END_KEY:
-            CONFIG.cx = CONFIG.screencols - 1;
+            if(CONFIG.cy < CONFIG.numrows){
+                CONFIG.cx = CONFIG.row[CONFIG.cy].size;
+            }
             break;
 
         case PAGE_UP:
         case PAGE_DOWN:
             {
+                if(input == PAGE_UP){
+                    CONFIG.cy = CONFIG.rowoff;
+                } else if (input == PAGE_DOWN){
+                    CONFIG.cy = CONFIG.rowoff + CONFIG.screenrows - 1;
+                    if(CONFIG.cy > CONFIG.numrows){
+                        CONFIG.cy = CONFIG.numrows;
+                    }
+                }
                 int time = CONFIG.screenrows;
                 while(time--){
                     editorMoveCursor(input == PAGE_UP ? ARROW_UP : ARROW_DOWN);
@@ -505,7 +516,11 @@ void editorRefreshScreen(){
 }
 
 void editorScroll() {
-    CONFIG.rx = CONFIG.cx;
+    CONFIG.rx = 0;
+
+    if(CONFIG.cy < CONFIG.numrows) {
+        CONFIG.rx = editorRowCxToRx(&CONFIG.row[CONFIG.cy], CONFIG.cx);// Ensure cursor moves properly with tabs
+    }
     
     if (CONFIG.cy < CONFIG.rowoff) {
         CONFIG.rowoff = CONFIG.cy;
