@@ -89,7 +89,7 @@ void editorScroll();
 /*** row operations ***/
 void editorUpdateRow(erow *row);
 void editorAppendRow(char* s, size_t len);
-
+int editorRowCxToRx(erow * row, int cx);
 /*** input ***/
 void editorMoveCursor(int key);
 
@@ -362,6 +362,18 @@ void editorAppendRow(char* s, size_t len){
     editorUpdateRow(&CONFIG.row[at]);
 
     CONFIG.numrows++;
+}
+
+int editorRowCxToRx(erow *row, int cx){
+    int rx = 0;
+    int j;
+    for(j=0; j < cx; j++){
+        if(row->chars[j] == '\t'){
+           rx += (KILO_TAB_STOP - 1) - (rx % KILO_TAB_STOP);
+        }
+        rx++;
+    }
+    return rx;
 }
 
 /*** file i/o ***/
