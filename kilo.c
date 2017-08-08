@@ -1,5 +1,4 @@
-//http://viewsourcecode.org/snaptoken/kilo/04.aTextViewer.html#status-bar
-// http://viewsourcecode.org/snaptoken/kilo/04.aTextViewer.html step 70
+//http://viewsourcecode.org/snaptoken/kilo/05.aTextEditor.html#prevent-inserting-special-characters
 
 /*** include ***/
 
@@ -99,6 +98,10 @@ void editorUpdateRow(erow *row);
 void editorAppendRow(char* s, size_t len);
 int editorRowCxToRx(erow * row, int cx);
 void editorRowInsertChar(erow *row, int at, int input);
+
+/*** editor oprations ***/
+
+void editorInsertChar(int input);
 
 /*** input ***/
 void editorMoveCursor(int key);
@@ -232,50 +235,54 @@ int editorReadKey(){
 void editorProcessKeyPress(){
     int input = editorReadKey();
 
-    switch(input){
-        case CTRL_KEY('q'):
+    switch(input) {
+    case CTRL_KEY('q'):
 
-            // Clear screen and exit on quit
-            write(STDOUT_FILENO, "\x1b[2J", 4);
-            write(STDOUT_FILENO, "\x1b[H", 3);
-            exit(0);
-            break;
+        // Clear screen and exit on quit
+        write(STDOUT_FILENO, "\x1b[2J", 4);
+        write(STDOUT_FILENO, "\x1b[H", 3);
+        exit(0);
+        break;
 
-        case HOME_KEY:
-            CONFIG.cx =0;
-            break;
+    case HOME_KEY:
+        CONFIG.cx =0;
+        break;
 
-        case END_KEY:
-            if(CONFIG.cy < CONFIG.numrows){
-                CONFIG.cx = CONFIG.row[CONFIG.cy].size;
-            }
-            break;
-
-        case PAGE_UP:
-        case PAGE_DOWN:
-            {
-                if(input == PAGE_UP){
-                    CONFIG.cy = CONFIG.rowoff;
-                } else if (input == PAGE_DOWN){
-                    CONFIG.cy = CONFIG.rowoff + CONFIG.screenrows - 1;
-                    if(CONFIG.cy > CONFIG.numrows){
-                        CONFIG.cy = CONFIG.numrows;
-                    }
-                }
-                int times = CONFIG.screenrows;
-                while(times--){
-                    editorMoveCursor(input == PAGE_UP ? ARROW_UP : ARROW_DOWN);
-                }
-            }
-            break;
-
-        case ARROW_UP:
-        case ARROW_DOWN:
-        case ARROW_LEFT:
-        case ARROW_RIGHT:
-          editorMoveCursor(input);
-          break;
+    case END_KEY:
+        if(CONFIG.cy < CONFIG.numrows){
+            CONFIG.cx = CONFIG.row[CONFIG.cy].size;
         }
+        break;
+
+    case PAGE_UP:
+    case PAGE_DOWN:
+        {
+            if(input == PAGE_UP){
+                CONFIG.cy = CONFIG.rowoff;
+            } else if (input == PAGE_DOWN){
+                CONFIG.cy = CONFIG.rowoff + CONFIG.screenrows - 1;
+                if(CONFIG.cy > CONFIG.numrows){
+                    CONFIG.cy = CONFIG.numrows;
+                }
+            }
+            int times = CONFIG.screenrows;
+            while(times--){
+                editorMoveCursor(input == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+            }
+        }
+        break;
+
+    case ARROW_UP:
+    case ARROW_DOWN:
+    case ARROW_LEFT:
+    case ARROW_RIGHT:
+        editorMoveCursor(input);
+        break;
+
+    default:
+        editorInsertChar(input);
+        break;
+    }
 }
 
 int getCursorPosition(int *rows, int *cols) {
@@ -410,6 +417,13 @@ int editorRowCxToRx(erow *row, int cx){
     return rx;
 }
 
+void editorInsertChar(int input){
+    if(CONFIG.cy == CONFIG.numrows){
+        editorAppendRow("", 0);
+    }
+    editorRowInsertChar(&CONFIG.row[CONFIG.cy], CONFIG.cx, input);
+    CONFIG.cx++;
+}
 /*** file i/o ***/
 void editorOpen(char* filename){
     free(CONFIG.filename);
@@ -604,6 +618,7 @@ void editorDrawMessageBar(struct abuf *ab){
     }
 
 }
+
 
 /*** input ***/
 void editorMoveCursor(int key){
