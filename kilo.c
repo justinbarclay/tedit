@@ -93,10 +93,13 @@ void editorDrawRows(struct abuf *ab);
 void editorScroll();
 void editorSetStatusMessage(const char* fmt, ...);
 void editorDrawMessageBar(struct abuf *ab);
+
 /*** row operations ***/
 void editorUpdateRow(erow *row);
 void editorAppendRow(char* s, size_t len);
 int editorRowCxToRx(erow * row, int cx);
+void editorRowInsertChar(erow *row, int at, int input);
+
 /*** input ***/
 void editorMoveCursor(int key);
 
@@ -381,6 +384,18 @@ void editorAppendRow(char* s, size_t len){
     editorUpdateRow(&CONFIG.row[at]);
 
     CONFIG.numrows++;
+}
+
+void editorRowInsertChar(erow * row, int at, int input){
+    if(at < 0 || at > row->size){
+        at = row->size;
+    }
+
+    row->chars = realloc(row->chars, row->size + 2); //reallocate enough space for new char and nullbyte
+    memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
+    row->size++;
+    row->chars[at] = input;
+    editorUpdateRow(row);
 }
 
 int editorRowCxToRx(erow *row, int cx){
