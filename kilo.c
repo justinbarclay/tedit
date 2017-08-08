@@ -50,6 +50,7 @@ struct editorConfig {
     int screencols;
     int numrows;
     erow* row; //editor can have multiple buffer rows
+    char *filename;
     struct termios orig_termios;
 };
 
@@ -84,6 +85,7 @@ void abFree(struct abuf *ab);
 
 /*** output ***/
 void editorRefreshScreen();
+void editorDrawStatusBar(struct abuf *ab);
 void editorDrawRows(struct abuf *ab);
 void editorScroll();
 
@@ -109,7 +111,7 @@ int main(int argc, char *argv[]) {
     if(argc >= 2){
         editorOpen(argv[1]); // pass in the first argument as a filename
     }
-    
+
     // Read 1 byte at a time
     while(1){
         editorRefreshScreen();
@@ -234,7 +236,7 @@ void editorProcessKeyPress(){
         case HOME_KEY:
             CONFIG.cx =0;
             break;
-            
+
         case END_KEY:
             if(CONFIG.cy < CONFIG.numrows){
                 CONFIG.cx = CONFIG.row[CONFIG.cy].size;
@@ -339,7 +341,7 @@ void editorUpdateRow(erow *row){
            tabs++;
         }
     }
-    
+
     free(row->render);
     row->render = malloc(row->size + tabs*(KILO_TAB_STOP -1) + 1);
 
@@ -351,7 +353,7 @@ void editorUpdateRow(erow *row){
             while(idx % KILO_TAB_STOP != 0){
                 row -> render[idx++] = ' ';
             }
-                
+
         } else {
             row->render[idx++] = row->chars[j];
         }
@@ -390,6 +392,9 @@ int editorRowCxToRx(erow *row, int cx){
 
 /*** file i/o ***/
 void editorOpen(char* filename){
+    free(CONFIG.filename);
+    CONFIG.filename = strdup(filename);
+
     FILE *fp = fopen(filename, "r");
 
     if(!fp){
@@ -448,7 +453,7 @@ void editorDrawRows(struct abuf *ab){
                 // But only If text buffer is empty
                 char welcome[80];
                 int welcomelen = snprintf(welcome, sizeof(welcome), "Kilo editor -- version %s", KILO_VERSION);
-                
+
                 // /* TODO:  *truncate message if screen too short
                 if(welcomelen > CONFIG.screencols) {
                     welcomelen = CONFIG.screencols;
@@ -473,7 +478,7 @@ void editorDrawRows(struct abuf *ab){
             if(len < 0){
                 len = 0;
             }
-            
+
             if(len > CONFIG.screencols){
                 len = CONFIG.screencols;
             }
@@ -482,10 +487,31 @@ void editorDrawRows(struct abuf *ab){
         }
         // K erases part of current line
         abAppend(ab, "\x1b[K", 3);
-        if ( y < CONFIG.screenrows - 1){
-            abAppend(ab, "\r\n", 2);
+        abAppend(ab, "\r\n", 2);
+    }
+}
+
+void editorDrawStatusBar(struct abuf *ab){
+    abAppend(ab, "\x1b[7m", 4);
+
+    char status[80],  rstatus[80];
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines",
+                       CONFIG.filename ? CONFIG.filename : "[No Name]",
+                       CONFIG.numrows);
+    int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
+                          CONFIG.cy + 1, CONFIG.numrows);
+    abAppend(ab, status, len);
+
+    while(len < CONFIG.screencols) {
+        if(CONFIG.screencols -len == rlen){
+            abAppend(ab, rstatus, rlen);
+            break;
+        } else {
+            abAppend(ab, " ", 1);
+            len++;
         }
     }
+    abAppend(ab, "\x1b[m", 3);
 }
 
 void editorRefreshScreen(){
@@ -503,6 +529,7 @@ void editorRefreshScreen(){
     abAppend(&ab, "\x1b[H", 3);
 
     editorDrawRows(&ab);
+    editorDrawStatusBar(&ab);
 
     char buf[32];
     // Specify the exact position in the terminal the cursor should be drawn atexit
@@ -522,7 +549,7 @@ void editorScroll() {
     if(CONFIG.cy < CONFIG.numrows) {
         CONFIG.rx = editorRowCxToRx(&CONFIG.row[CONFIG.cy], CONFIG.cx);// Ensure cursor moves properly with tabs
     }
-    
+
     if (CONFIG.cy < CONFIG.rowoff) {
         CONFIG.rowoff = CONFIG.cy;
     }
@@ -540,7 +567,7 @@ void editorScroll() {
 /*** input ***/
 void editorMoveCursor(int key){
     erow *row = (CONFIG.cy >= CONFIG.numrows) ? NULL : &CONFIG.row[CONFIG.cy];
-    
+
     switch(key) {
 
     case ARROW_LEFT:
@@ -580,6 +607,7 @@ void editorMoveCursor(int key){
 }
 /*** init ***/
 void initEditor(){
+
     CONFIG.cx = 0;
     CONFIG.cy = 0;
     CONFIG.rx = 0;
@@ -587,8 +615,16 @@ void initEditor(){
     CONFIG.coloff = 0;
     CONFIG.numrows = 0;
     CONFIG.row = NULL;
-    
+    CONFIG.filename = NULL;
+
     if(getWindowSize(&CONFIG.screenrows, &CONFIG.screencols) == -1){
         die("getWindowsize");
     }
+
+    // Clear screen entirely before starting, this stops some artifacts from still ebing rendered
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
+
+
+    CONFIG.screenrows -= 1; // Save 1 row at bottom for a status bar
 }
