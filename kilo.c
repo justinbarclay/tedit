@@ -4,15 +4,16 @@
 /*** include ***/
 
 #include <ctype.h>
-#include <string.h>
-#include <stdio.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <unistd.h>
-#include <stdlib.h>
 #include <termios.h>
-
+#include <time.h>
+#include <unistd.h>
 
 /*** defines ***/
 #define KILO_VERSION "0.0.1"
@@ -51,6 +52,8 @@ struct editorConfig {
     int numrows;
     erow* row; //editor can have multiple buffer rows
     char *filename;
+    char statusmsg[80];
+    time_t statusmsg_time;
     struct termios orig_termios;
 };
 
@@ -88,7 +91,8 @@ void editorRefreshScreen();
 void editorDrawStatusBar(struct abuf *ab);
 void editorDrawRows(struct abuf *ab);
 void editorScroll();
-
+void editorSetStatusMessage(const char* fmt, ...);
+void editorDrawMessageBar(struct abuf *ab);
 /*** row operations ***/
 void editorUpdateRow(erow *row);
 void editorAppendRow(char* s, size_t len);
@@ -112,6 +116,7 @@ int main(int argc, char *argv[]) {
         editorOpen(argv[1]); // pass in the first argument as a filename
     }
 
+    editorSetStatusMessage("HELP: Ctrl-Q = quit");
     // Read 1 byte at a time
     while(1){
         editorRefreshScreen();
@@ -512,6 +517,7 @@ void editorDrawStatusBar(struct abuf *ab){
         }
     }
     abAppend(ab, "\x1b[m", 3);
+    abAppend(ab, "\r\n", 2);
 }
 
 void editorRefreshScreen(){
@@ -530,7 +536,7 @@ void editorRefreshScreen(){
 
     editorDrawRows(&ab);
     editorDrawStatusBar(&ab);
-
+    editorDrawMessageBar(&ab);
     char buf[32];
     // Specify the exact position in the terminal the cursor should be drawn atexit
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (CONFIG.cy - CONFIG.rowoff) + 1, (CONFIG.rx - CONFIG.coloff) + 1);
@@ -562,6 +568,26 @@ void editorScroll() {
     if(CONFIG.rx >= CONFIG.coloff + CONFIG.screencols){
         CONFIG.coloff = CONFIG.cx - CONFIG.screencols + 1;
     }
+}
+
+void editorSetStatusMessage(const char* fmt, ...){
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(CONFIG.statusmsg, sizeof(CONFIG.statusmsg), fmt, ap);
+    va_end(ap);
+    CONFIG.statusmsg_time = time(NULL);
+}
+
+void editorDrawMessageBar(struct abuf *ab){
+    abAppend(ab, "\x1b[k", 3);
+    int msglen = strlen(CONFIG.statusmsg);
+    if(msglen > CONFIG.screencols){
+        msglen = CONFIG.screencols;
+    }
+    if(msglen && time(NULL) - CONFIG.statusmsg_time < 5){
+        abAppend(ab, CONFIG.statusmsg, msglen);
+    }
+
 }
 
 /*** input ***/
@@ -616,6 +642,8 @@ void initEditor(){
     CONFIG.numrows = 0;
     CONFIG.row = NULL;
     CONFIG.filename = NULL;
+    CONFIG.statusmsg[0] = '\0';
+    CONFIG.statusmsg_time = 0;
 
     if(getWindowSize(&CONFIG.screenrows, &CONFIG.screencols) == -1){
         die("getWindowsize");
@@ -626,5 +654,5 @@ void initEditor(){
     write(STDOUT_FILENO, "\x1b[H", 3);
 
 
-    CONFIG.screenrows -= 1; // Save 1 row at bottom for a status bar
+    CONFIG.screenrows -= 2; // Save 1 row at bottom for a status bar
 }
