@@ -1,3 +1,4 @@
+//http://viewsourcecode.org/snaptoken/kilo/04.aTextViewer.html#status-bar
 // http://viewsourcecode.org/snaptoken/kilo/04.aTextViewer.html step 70
 
 /*** include ***/
@@ -251,8 +252,8 @@ void editorProcessKeyPress(){
                         CONFIG.cy = CONFIG.numrows;
                     }
                 }
-                int time = CONFIG.screenrows;
-                while(time--){
+                int times = CONFIG.screenrows;
+                while(times--){
                     editorMoveCursor(input == PAGE_UP ? ARROW_UP : ARROW_DOWN);
                 }
             }
@@ -505,7 +506,7 @@ void editorRefreshScreen(){
 
     char buf[32];
     // Specify the exact position in the terminal the cursor should be drawn atexit
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (CONFIG.cy + CONFIG.rowoff) + 1, (CONFIG.rx - CONFIG.coloff) + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (CONFIG.cy - CONFIG.rowoff) + 1, (CONFIG.rx - CONFIG.coloff) + 1);
     abAppend(&ab, buf, strlen(buf));
 
     // h = turn on
