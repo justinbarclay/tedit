@@ -18,6 +18,7 @@
 /*** defines ***/
 #define KILO_VERSION "0.0.1"
 #define KILO_TAB_STOP 8
+#define KILO_QUIT_TIMES 3
 
 #define CTRL_KEY(k) ((k) & 0x1f) // Binary & operation
 
@@ -237,6 +238,7 @@ int editorReadKey(){
 }
 
 void editorProcessKeyPress(){
+    static int quit_times = KILO_QUIT_TIMES;
     int input = editorReadKey();
 
     switch(input) {
@@ -244,12 +246,16 @@ void editorProcessKeyPress(){
         break;
         
     case CTRL_KEY('q'):
-
-        // Clear screen and exit on quit
+        if(CONFIG.dirty && quit_times > 0) {
+            // Clear screen and exit on quit
+            editorSetStatusMessage("WARNING!!! File has unstaved changes. Press Ctrl-Q %d more times to quit.", quit_times);
+            quit_times--;
+            return;
+        }
         write(STDOUT_FILENO, "\x1b[2J", 4);
         write(STDOUT_FILENO, "\x1b[H", 3);
         exit(0);
-        break;
+            break;
 
     case CTRL_KEY('s'):
         editorSave();
@@ -302,6 +308,8 @@ void editorProcessKeyPress(){
         editorInsertChar(input);
         break;
     }
+
+    quit_times = KILO_QUIT_TIMES;
 }
 
 int getCursorPosition(int *rows, int *cols) {
