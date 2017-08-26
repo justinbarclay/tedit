@@ -104,10 +104,11 @@ void editorUpdateRow(erow *row);
 void editorAppendRow(char* s, size_t len);
 int editorRowCxToRx(erow * row, int cx);
 void editorRowInsertChar(erow *row, int at, int input);
+void editorRowDelChar(erow *row, int at);
 
 /*** editor oprations ***/
 void editorInsertChar(int input);
-
+void editorDelChat();
 /*** input ***/
 void editorMoveCursor(int key);
 
@@ -274,6 +275,8 @@ void editorProcessKeyPress(){
     case BACKSPACE:
     case CTRL_KEY('h'):
     case DEL_KEY:
+        if( c == DEL_KEY) editorMoveCursor(ARROW_RIGHT);
+        editorDelChar();
         break;
     case PAGE_UP:
     case PAGE_DOWN:
@@ -434,6 +437,14 @@ void editorRowInsertChar(erow * row, int at, int input){
     CONFIG.dirty++;
 }
 
+void editorRowDelChar(erow *row, int at){
+    if(at < 0 || at >=row->size) return;
+
+    memmove(&row->chars[at], &row->chars[at + 1], row->size - at);
+    row->size--;
+    editorUpdateRow(row);
+    CONFIG.dirty++;
+}
 int editorRowCxToRx(erow *row, int cx){
     int rx = 0;
     int j;
@@ -445,13 +456,24 @@ int editorRowCxToRx(erow *row, int cx){
     }
     return rx;
 }
-
+/*** editor operations **/
 void editorInsertChar(int input){
     if(CONFIG.cy == CONFIG.numrows){
         editorAppendRow("", 0);
     }
     editorRowInsertChar(&CONFIG.row[CONFIG.cy], CONFIG.cx, input);
     CONFIG.cx++;
+}
+
+void editorDelChar(){
+    // if the cursor is past the end of the file there is nothing to delete
+    if(CONFIG.cy == CONFIG.numrows) return;
+
+    erow *row = &CONFIG.row[CONFIG.cy];
+    if(CONFIG.cx > 0){
+        editorRowDelChar(row, CONFIG.cx - 1);
+        CONFIG.cx--;
+    }
 }
 /*** file i/o ***/
 
