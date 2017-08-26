@@ -1,4 +1,4 @@
-//http://viewsourcecode.org/snaptoken/kilo/05.aTextEditor.html#prevent-inserting-special-characters
+// Step 120
 
 /*** include ***/
 
@@ -102,6 +102,8 @@ void editorDrawMessageBar(struct abuf *ab);
 /*** row operations ***/
 void editorUpdateRow(erow *row);
 void editorAppendRow(char* s, size_t len);
+void editorFreeRow(erow *row);
+void editorDelRow(int at);
 int editorRowCxToRx(erow * row, int cx);
 void editorRowInsertChar(erow *row, int at, int input);
 void editorRowDelChar(erow *row, int at);
@@ -423,7 +425,18 @@ void editorAppendRow(char* s, size_t len){
     CONFIG.numrows++;
     CONFIG.dirty++;
 }
+void editorFreeRow(erow *row){
+    free(row->render);
+    free(row->chars);
+}
 
+void editorDelRow(int at){
+    if( at < 0 || at >= CONFIG.numrows) return;
+    editorFreeRow(&CONFIG.row[at]);
+    memmove(&CONFIG.row[at], &CONFIG.row[at + 1], sizeof(erow) * (CONFIG.numrow - at -1));
+    CONFIG.numrows--;
+    CONFIG.dirty++;
+}
 void editorRowInsertChar(erow * row, int at, int input){
     if(at < 0 || at > row->size){
         at = row->size;
