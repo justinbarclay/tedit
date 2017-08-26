@@ -51,7 +51,8 @@ struct editorConfig {
     int screenrows;
     int screencols;
     int numrows;
-    erow* row; //editor can have multiple buffer rows
+    erow *row; //editor can have multiple buffer rows
+    int dirty;
     char *filename;
     char statusmsg[80];
     time_t statusmsg_time;
@@ -104,7 +105,6 @@ int editorRowCxToRx(erow * row, int cx);
 void editorRowInsertChar(erow *row, int at, int input);
 
 /*** editor oprations ***/
-
 void editorInsertChar(int input);
 
 /*** input ***/
@@ -410,6 +410,7 @@ void editorAppendRow(char* s, size_t len){
     editorUpdateRow(&CONFIG.row[at]);
 
     CONFIG.numrows++;
+    CONFIG.dirty++;
 }
 
 void editorRowInsertChar(erow * row, int at, int input){
@@ -422,6 +423,7 @@ void editorRowInsertChar(erow * row, int at, int input){
     row->size++;
     row->chars[at] = input;
     editorUpdateRow(row);
+    CONFIG.dirty++;
 }
 
 int editorRowCxToRx(erow *row, int cx){
@@ -491,6 +493,7 @@ void editorOpen(char* filename){
 
     free(line);
     fclose(fp);
+    CONFIG.dirty = 0;
 }
 
 void editorSave(){
@@ -508,6 +511,7 @@ void editorSave(){
             if (write(fd, buf, len) == len){
                 close(fd);
                 free(buf);
+                CONFIG.dirty = 0;
                 editorSetStatusMessage("%d bytes written to disk", len);
                 return;
             }
@@ -595,11 +599,11 @@ void editorDrawRows(struct abuf *ab){
 
 void editorDrawStatusBar(struct abuf *ab){
     abAppend(ab, "\x1b[7m", 4);
-
+    
     char status[80],  rstatus[80];
-    int len = snprintf(status, sizeof(status), "%.20s - %d lines",
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
                        CONFIG.filename ? CONFIG.filename : "[No Name]",
-                       CONFIG.numrows);
+                       CONFIG.numrows, CONFIG.dirty? "(modified)" : "");
     int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
                           CONFIG.cy + 1, CONFIG.numrows);
     abAppend(ab, status, len);
@@ -739,6 +743,7 @@ void initEditor(){
     CONFIG.coloff = 0;
     CONFIG.numrows = 0;
     CONFIG.row = NULL;
+    CONFIG.dirty = 0;
     CONFIG.filename = NULL;
     CONFIG.statusmsg[0] = '\0';
     CONFIG.statusmsg_time = 0;
