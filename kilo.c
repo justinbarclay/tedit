@@ -4,6 +4,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -21,6 +22,7 @@
 #define CTRL_KEY(k) ((k) & 0x1f) // Binary & operation
 
 enum editorKey {
+    BACKSPACE = 127,
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
     ARROW_UP,
@@ -78,7 +80,9 @@ int getCursorPosition(int *rows, int *cols);
 int getWindowSize(int * rows, int *cols);
 
 /*** file i/o ***/
+char* editorRowsToString(int *buflen);
 void editorOpen(char* filename);
+void editorSave();
 
 /*** append buffer ***/
 void abAppend(struct abuf *ab, const char* string, int len);
@@ -122,7 +126,7 @@ int main(int argc, char *argv[]) {
         editorOpen(argv[1]); // pass in the first argument as a filename
     }
 
-    editorSetStatusMessage("HELP: Ctrl-Q = quit");
+    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
     // Read 1 byte at a time
     while(1){
         editorRefreshScreen();
@@ -236,6 +240,9 @@ void editorProcessKeyPress(){
     int input = editorReadKey();
 
     switch(input) {
+    case '\r':
+        break;
+        
     case CTRL_KEY('q'):
 
         // Clear screen and exit on quit
@@ -244,6 +251,10 @@ void editorProcessKeyPress(){
         exit(0);
         break;
 
+    case CTRL_KEY('s'):
+        editorSave();
+        break;
+        
     case HOME_KEY:
         CONFIG.cx =0;
         break;
@@ -254,6 +265,10 @@ void editorProcessKeyPress(){
         }
         break;
 
+    case BACKSPACE:
+    case CTRL_KEY('h'):
+    case DEL_KEY:
+        break;
     case PAGE_UP:
     case PAGE_DOWN:
         {
@@ -279,6 +294,10 @@ void editorProcessKeyPress(){
         editorMoveCursor(input);
         break;
 
+    case CTRL_KEY('l'):
+    case '\x1b':
+        break;
+        
     default:
         editorInsertChar(input);
         break;
@@ -425,6 +444,30 @@ void editorInsertChar(int input){
     CONFIG.cx++;
 }
 /*** file i/o ***/
+
+/*
+ * Convert a buffer to a single string
+ */
+char* editorRowsToString(int *buflen){
+    int totlen=0;
+    int j;
+    for(j=0; j<CONFIG.numrows; j++){
+        totlen += CONFIG.row[j].size + 1;
+    }
+    *buflen = totlen;
+
+    char *buf = malloc(totlen);
+    char *p = buf;
+
+    for(j=0; j < CONFIG.numrows; j++){
+        memcpy(p, CONFIG.row[j].chars, CONFIG.row[j].size);
+        p += CONFIG.row[j].size;
+        *p = '\n';
+        p++;
+    }
+    return buf;
+}
+
 void editorOpen(char* filename){
     free(CONFIG.filename);
     CONFIG.filename = strdup(filename);
@@ -448,6 +491,31 @@ void editorOpen(char* filename){
 
     free(line);
     fclose(fp);
+}
+
+void editorSave(){
+    if(CONFIG.filename == NULL){
+        return;
+    }
+
+    int len;
+    char *buf = editorRowsToString(&len);
+
+    
+    int fd = open(CONFIG.filename, O_RDWR | O_CREAT, 0644);
+    if (fd != -1){
+        if (ftruncate(fd, len) != -1){
+            if (write(fd, buf, len) == len){
+                close(fd);
+                free(buf);
+                editorSetStatusMessage("%d bytes written to disk", len);
+                return;
+            }
+        }
+        close(fd);
+    }
+    free(buf);
+    editorSetStatusMessage("Can't save! I/O errors: %s", strerror(errno));
 }
 
 /*** append buffer ***/
