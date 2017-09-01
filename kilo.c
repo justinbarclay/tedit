@@ -486,20 +486,43 @@ void editorRowAppendString(erow *row, char *s, size_t len){
 /*** editor operations **/
 void editorInsertChar(int input){
     if(CONFIG.cy == CONFIG.numrows){
-        editorAppendRow("", 0);
+        editorInsertRow(CONFIG.numrows,"", 0);
     }
     editorRowInsertChar(&CONFIG.row[CONFIG.cy], CONFIG.cx, input);
     CONFIG.cx++;
 }
 
+void editorInsertNewline(){
+    if(CONFIG.cx == 0){
+        editorInsertRow(CONFIG.cy, "", 0);
+    } else {
+        erow *row = &CONFIG.row[CONFIG.cy];
+
+        editorInsertRow(CONFIG.cy, &row->chars[CONFIG.cx], row->size - CONFIG.cx);
+        row = &CONFIG.row[CONFIG.cy];
+        row->size = CONFIG.cx;
+        row->chars[row->size] = '\0';
+        editorUpdateRow(row);
+    }
+
+    CONFIG.cy++;
+    CONFIG.cx = 0;
+}
+
 void editorDelChar(){
     // if the cursor is past the end of the file there is nothing to delete
     if(CONFIG.cy == CONFIG.numrows) return;
-
+    if(CONFIG.cx == 0 && CONFIG.cy == 0) return;
+    
     erow *row = &CONFIG.row[CONFIG.cy];
     if(CONFIG.cx > 0){
         editorRowDelChar(row, CONFIG.cx - 1);
         CONFIG.cx--;
+    } else {
+        CONFIG.cx = CONFIG.row[CONFIG.cy - 1].size;
+        editorRowAppendString(&CONFIG.row[CONFIG.cy -1], row->chars, row->size);
+        editorDelRow(CONFIG.cy);
+        CONFIG.cy--;
     }
 }
 /*** file i/o ***/
