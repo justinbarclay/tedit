@@ -411,10 +411,12 @@ void editorUpdateRow(erow *row){
     row->render[idx] = '\0';
 }
 
-void editorAppendRow(char* s, size_t len){
+void editorInsertRow(int at, char* s, size_t len){
+    if(at < 0 || at > CONFIG.numrows) return;
+    
     CONFIG.row = realloc(CONFIG.row, sizeof(erow) * (CONFIG.numrows + 1));
+    memmove(&CONFIG.row[at + 1], &CONFIG.row[at], sizeof(erow) * (CONFIG.numrows - at));
 
-    int at = CONFIG.numrows;
     CONFIG.row[at].size = len;
     CONFIG.row[at].chars = malloc(len + 1);
     memcpy(CONFIG.row[at].chars, s, len);
@@ -543,7 +545,7 @@ void editorOpen(char* filename){
                               line[linelen - 1] == '\r')){
             linelen--;
         }
-        editorAppendRow(line, linelen);
+        editorInsertRow(CONFIG.numrows, line, linelen);
     }
 
     free(line);
