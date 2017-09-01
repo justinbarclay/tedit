@@ -107,10 +107,12 @@ void editorDelRow(int at);
 int editorRowCxToRx(erow * row, int cx);
 void editorRowInsertChar(erow *row, int at, int input);
 void editorRowDelChar(erow *row, int at);
+void editorRowAppendString(erow *row, char *s, size_t len);
 
-/*** editor oprations ***/
+/*** editor operations ***/
 void editorInsertChar(int input);
-void editorDelChat();
+void editorDelChar();
+
 /*** input ***/
 void editorMoveCursor(int key);
 
@@ -277,7 +279,7 @@ void editorProcessKeyPress(){
     case BACKSPACE:
     case CTRL_KEY('h'):
     case DEL_KEY:
-        if( c == DEL_KEY) editorMoveCursor(ARROW_RIGHT);
+        if( input == DEL_KEY) editorMoveCursor(ARROW_RIGHT);
         editorDelChar();
         break;
     case PAGE_UP:
@@ -433,7 +435,7 @@ void editorFreeRow(erow *row){
 void editorDelRow(int at){
     if( at < 0 || at >= CONFIG.numrows) return;
     editorFreeRow(&CONFIG.row[at]);
-    memmove(&CONFIG.row[at], &CONFIG.row[at + 1], sizeof(erow) * (CONFIG.numrow - at -1));
+    memmove(&CONFIG.row[at], &CONFIG.row[at + 1], sizeof(erow) * (CONFIG.numrows - at -1));
     CONFIG.numrows--;
     CONFIG.dirty++;
 }
@@ -469,6 +471,16 @@ int editorRowCxToRx(erow *row, int cx){
     }
     return rx;
 }
+
+void editorRowAppendString(erow *row, char *s, size_t len){
+    row->chars = realloc(row->chars, row->size + len + 1);
+    memcpy(&row->chars[row->size], s, len);
+    row->size += len;
+    row->chars[row->size] = '\0';
+    editorUpdateRow(row);
+    CONFIG.dirty++;
+}
+
 /*** editor operations **/
 void editorInsertChar(int input){
     if(CONFIG.cy == CONFIG.numrows){
