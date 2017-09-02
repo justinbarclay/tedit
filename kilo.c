@@ -112,6 +112,7 @@ void editorRowAppendString(erow *row, char *s, size_t len);
 /*** editor operations ***/
 void editorInsertChar(int input);
 void editorDelChar();
+void editorInsertNewline();
 
 /*** input ***/
 void editorMoveCursor(int key);
@@ -248,6 +249,7 @@ void editorProcessKeyPress(){
 
     switch(input) {
     case '\r':
+        editorInsertNewline();
         break;
         
     case CTRL_KEY('q'):
@@ -492,21 +494,20 @@ void editorInsertChar(int input){
     CONFIG.cx++;
 }
 
-void editorInsertNewline(){
-    if(CONFIG.cx == 0){
-        editorInsertRow(CONFIG.cy, "", 0);
-    } else {
-        erow *row = &CONFIG.row[CONFIG.cy];
+void editorInsertNewline() {
+  if (CONFIG.cx == 0) {
+    editorInsertRow(CONFIG.cy, "", 0);
+  } else {
+    erow *row = &CONFIG.row[CONFIG.cy];
 
-        editorInsertRow(CONFIG.cy, &row->chars[CONFIG.cx], row->size - CONFIG.cx);
-        row = &CONFIG.row[CONFIG.cy];
-        row->size = CONFIG.cx;
-        row->chars[row->size] = '\0';
-        editorUpdateRow(row);
-    }
-
-    CONFIG.cy++;
-    CONFIG.cx = 0;
+    editorInsertRow(CONFIG.cy + 1, &row->chars[CONFIG.cx], row->size - CONFIG.cx);
+    row = &CONFIG.row[CONFIG.cy];
+    row->size = CONFIG.cx;
+    row->chars[row->size] = '\0';
+    editorUpdateRow(row);
+  }
+  CONFIG.cy++;
+  CONFIG.cx = 0;
 }
 
 void editorDelChar(){
