@@ -1,4 +1,4 @@
-// Step 120
+// Step 125
 
 /*** include ***/
 
@@ -73,6 +73,10 @@ struct abuf {
 
 struct editorConfig CONFIG;
 
+/*** Prototypes ***/
+void editorSetStatusMessage(const char* fmt, ...);
+void editorRefreshScreen();
+
 /*** terminal ***/
 void enableRawMode();
 void disableRawMode();
@@ -96,7 +100,6 @@ void editorRefreshScreen();
 void editorDrawStatusBar(struct abuf *ab);
 void editorDrawRows(struct abuf *ab);
 void editorScroll();
-void editorSetStatusMessage(const char* fmt, ...);
 void editorDrawMessageBar(struct abuf *ab);
 
 /*** row operations ***/
@@ -116,7 +119,7 @@ void editorInsertNewline();
 
 /*** input ***/
 void editorMoveCursor(int key);
-
+void editorPrompt(char prompt);
 /*** init ***/
 void initEditor();
 
@@ -142,6 +145,8 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+/*** prototypes***
+     
 
 /*** terminal ***/
 void enableRawMode(){
@@ -814,7 +819,36 @@ void editorMoveCursor(int key){
         CONFIG.cx = rowlen;
     }
 }
-/*** init ***/
+
+void editorPrompt(char prompt){
+    size_t bufsize = 128;
+    char* buf = malloc(bufsize);
+
+    size_t buflen = 0;
+    buf[0] = '\0';
+
+    whie(1){
+        editorSetSatusMessage(prompt, buf);
+        editorRefreshScreeen();
+
+        int input = editorReadKey();
+        if(input == '\r'){
+            if(buflen !=0){
+                editorSetStatusMessage("");
+                return buf;
+            }
+        } else if(!iscntrl(input) && input < 128){
+            if (buflen == bufsize -1){
+                bufsize *= 2;
+                buf = realloc(buf, bufsize);
+            }
+
+            buf[buflen++] = input;
+            buf[buflen] = '\0';
+        }
+    }
+}
+/*** Init ***/
 void initEditor(){
 
     CONFIG.cx = 0;
