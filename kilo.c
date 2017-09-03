@@ -119,7 +119,8 @@ void editorInsertNewline();
 
 /*** input ***/
 void editorMoveCursor(int key);
-void editorPrompt(char prompt);
+char* editorPrompt(char prompt);
+
 /*** init ***/
 void initEditor();
 
@@ -820,14 +821,14 @@ void editorMoveCursor(int key){
     }
 }
 
-void editorPrompt(char prompt){
+char* editorPrompt(char prompt){
     size_t bufsize = 128;
     char* buf = malloc(bufsize);
 
     size_t buflen = 0;
     buf[0] = '\0';
 
-    whie(1){
+    while(1){
         editorSetSatusMessage(prompt, buf);
         editorRefreshScreeen();
 
@@ -848,6 +849,7 @@ void editorPrompt(char prompt){
         }
     }
 }
+
 /*** Init ***/
 void initEditor(){
 
