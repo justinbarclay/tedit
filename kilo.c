@@ -1,4 +1,4 @@
-// Step 125
+// Step 130
 
 /*** include ***/
 
@@ -119,7 +119,7 @@ void editorInsertNewline();
 
 /*** input ***/
 void editorMoveCursor(int key);
-char* editorPrompt(char prompt);
+char* editorPrompt(char* prompt);
 
 /*** init ***/
 void initEditor();
@@ -146,10 +146,8 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-/*** prototypes***
-     
-
 /*** terminal ***/
+
 void enableRawMode(){
     if(tcgetattr(STDIN_FILENO, &CONFIG.orig_termios) == -1){
         die("tcsetattr");
@@ -585,7 +583,11 @@ void editorOpen(char* filename){
 
 void editorSave(){
     if(CONFIG.filename == NULL){
-        return;
+        CONFIG.filename = editorPrompt("Save as: %s");
+        if(CONFIG.filename == NULL) {
+            editorSetStatusMessage("Save aborted");
+            return;
+        }
     }
 
     int len;
@@ -821,7 +823,7 @@ void editorMoveCursor(int key){
     }
 }
 
-char* editorPrompt(char prompt){
+char* editorPrompt(char* prompt){
     size_t bufsize = 128;
     char* buf = malloc(bufsize);
 
@@ -829,11 +831,19 @@ char* editorPrompt(char prompt){
     buf[0] = '\0';
 
     while(1){
-        editorSetSatusMessage(prompt, buf);
-        editorRefreshScreeen();
+        editorSetStatusMessage(prompt, buf);
+        editorRefreshScreen();
 
         int input = editorReadKey();
-        if(input == '\r'){
+        if (input == DEL_KEY || input == CTRL_KEY('h') || input == BACKSPACE){
+            if(buflen != 0){
+                buf[--buflen] ='\0';
+            }
+        } else if (input == '\x1b'){
+            editorSetStatusMessage("");
+            free(buf);
+            return NULL;
+        } else if(input == '\r'){
             if(buflen !=0){
                 editorSetStatusMessage("");
                 return buf;
