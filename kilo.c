@@ -871,17 +871,42 @@ void editorMoveCursor(int key){
 /*** find ***/
 
 void editorFindCallback(char *query, int key){
+    static int last_match = -1;
+    static int direction = 1;
+
+    
     if( key == '\r' || key == '\x1b'){
+        last_match = -1;
+        direction = 1;
         return;
+    } else if (key == ARROW_RIGHT || key == ARROW_DOWN){
+        direction = 1;
+    } else if (key == ARROW_LEFT || key == ARROW_UP){
+        direction = -1;
+    } else {
+        last_match = -1;
+        direction = 1;
     }
 
+    if (last_match == -1){
+        direction = 1;
+    }
+    int current = last_match;
     int i;
     for(i = 0; i < CONFIG.numrows; i++){
-        erow * row = &CONFIG.row[i];
+        current += direction;
+        if(current == -1){
+            current = CONFIG.numrows - 1;
+        } else if (current == CONFIG.numrows){
+            current = 0;
+        }
+        
+        erow * row = &CONFIG.row[current];
 
         char *match = strstr(row->render, query);
         if(match) {
-            CONFIG.cy = i;
+            last_match = current;
+            CONFIG.cy = current;
             CONFIG.cx = editorRowRxToCx(row, match - row->render);
             CONFIG.rowoff = CONFIG.numrows;
             break;
@@ -890,9 +915,20 @@ void editorFindCallback(char *query, int key){
 }
 
 void editorFind(){
-    char *query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallback);
+    int saved_cx = CONFIG.cx;
+    int saved_cy = CONFIG.cy;
+
+    int saved_coloff = CONFIG.coloff;
+    int saved_rowoff = CONFIG.rowoff;
+    
+    char *query = editorPrompt("Search: %s (ESC to cancel/Arrows/Enter)", editorFindCallback);
     if(query){
         free(query);
+    } else{
+        CONFIG.cx = saved_cx;
+        CONFIG.cy = saved_cy;
+        CONFIG.coloff = saved_coloff;
+        CONFIG.rowoff = saved_rowoff;
     }
 }
 
