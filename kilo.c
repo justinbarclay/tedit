@@ -1,7 +1,6 @@
-// Step 130
+// Step 131
 
 /*** include ***/
-
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -93,7 +92,9 @@ void editorSave();
 /*** append buffer ***/
 void abAppend(struct abuf *ab, const char* string, int len);
 void abFree(struct abuf *ab);
-//thing
+
+/*** find ***/
+void editorFind();
 
 /*** output ***/
 void editorRefreshScreen();
@@ -108,6 +109,7 @@ void editorAppendRow(char* s, size_t len);
 void editorFreeRow(erow *row);
 void editorDelRow(int at);
 int editorRowCxToRx(erow * row, int cx);
+int editorRowRxToCx(erow *row, int rx);
 void editorRowInsertChar(erow *row, int at, int input);
 void editorRowDelChar(erow *row, int at);
 void editorRowAppendString(erow *row, char *s, size_t len);
@@ -137,7 +139,7 @@ int main(int argc, char *argv[]) {
         editorOpen(argv[1]); // pass in the first argument as a filename
     }
 
-    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
+    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-f = find");
     // Read 1 byte at a time
     while(1){
         editorRefreshScreen();
@@ -281,7 +283,10 @@ void editorProcessKeyPress(){
             CONFIG.cx = CONFIG.row[CONFIG.cy].size;
         }
         break;
-
+    case CTRL_KEY('f'): {
+        editorFind();
+        break;
+    }
     case BACKSPACE:
     case CTRL_KEY('h'):
     case DEL_KEY:
@@ -468,6 +473,7 @@ void editorRowDelChar(erow *row, int at){
     editorUpdateRow(row);
     CONFIG.dirty++;
 }
+
 int editorRowCxToRx(erow *row, int cx){
     int rx = 0;
     int j;
@@ -478,6 +484,23 @@ int editorRowCxToRx(erow *row, int cx){
         rx++;
     }
     return rx;
+}
+
+int editorRowRxToCx(erow *row, int rx){
+    int cur_rx = 0;
+    int cx;
+
+    for(cx = 0; cx < row->size; cx++){
+        if(row->chars[cx] == '\t'){
+            cur_rx += (KILO_TAB_STOP - 1) - (cur_rx % KILO_TAB_STOP);
+        }
+        cur_rx++;
+
+        if(cur_rx > rx){
+            return cx;
+        }
+    }
+    return cx;
 }
 
 void editorRowAppendString(erow *row, char *s, size_t len){
@@ -686,28 +709,49 @@ void editorDrawRows(struct abuf *ab){
     }
 }
 
-void editorDrawStatusBar(struct abuf *ab){
-    abAppend(ab, "\x1b[7m", 4);
+/* void editorDrawStatusBar(struct abuf *ab){ */
+/*     abAppend(ab, "\x1b[7m", 4); */
     
-    char status[80],  rstatus[80];
-    int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
-                       CONFIG.filename ? CONFIG.filename : "[No Name]",
-                       CONFIG.numrows, CONFIG.dirty? "(modified)" : "");
-    int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
-                          CONFIG.cy + 1, CONFIG.numrows);
-    abAppend(ab, status, len);
+/*     char status[80],  rstatus[80]; */
+/*     int len = snprintf(status, sizeof(status), "%.20s - %d lines %s", */
+/*                        CONFIG.filename ? CONFIG.filename : "[No Name]", */
+/*                        CONFIG.numrows, CONFIG.dirty? "(modified)" : ""); */
+/*     int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", */
+/*                           CONFIG.cy + 1, CONFIG.numrows); */
+/*     abAppend(ab, status, len); */
 
-    while(len < CONFIG.screencols) {
-        if(CONFIG.screencols -len == rlen){
-            abAppend(ab, rstatus, rlen);
-            break;
-        } else {
-            abAppend(ab, " ", 1);
-            len++;
-        }
+/*     while(len < CONFIG.screencols) { */
+/*         if(CONFIG.screencols -len == rlen){ */
+/*             abAppend(ab, rstatus, rlen); */
+/*             break; */
+/*         } else { */
+/*             abAppend(ab, " ", 1); */
+/*             len++; */
+/*         } */
+/*     } */
+/*     abAppend(ab, "\x1b[m", 3); */
+/*     abAppend(ab, "\r\n", 2); */
+/* } */
+
+void editorDrawStatusBar(struct abuf *ab) {
+  abAppend(ab, "\x1b[7m", 4);
+  char status[80], rstatus[80];
+  int len = snprintf(status, sizeof(status), "%.20s - %d lines",
+    CONFIG.filename ? CONFIG.filename : "[No Name]", CONFIG.numrows);
+  int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
+    CONFIG.cy + 1, CONFIG.numrows);
+  if (len > CONFIG.screencols) len = CONFIG.screencols;
+  abAppend(ab, status, len);
+  while (len < CONFIG.screencols) {
+    if (CONFIG.screencols - len == rlen) {
+      abAppend(ab, rstatus, rlen);
+      break;
+    } else {
+      abAppend(ab, " ", 1);
+      len++;
     }
-    abAppend(ab, "\x1b[m", 3);
-    abAppend(ab, "\r\n", 2);
+  }
+  abAppend(ab, "\x1b[m", 3);
 }
 
 void editorRefreshScreen(){
@@ -822,44 +866,57 @@ void editorMoveCursor(int key){
         CONFIG.cx = rowlen;
     }
 }
+/*** find ***/
+void editorFind(){
+    char *query = editorPrompt("Search: %s (ESC to cancel)");
+    if (query == NULL) return;
 
-char* editorPrompt(char* prompt){
-    size_t bufsize = 128;
-    char* buf = malloc(bufsize);
+    int i;
+    for(i = 0; i < CONFIG.numrows; i++){
+        erow * row = &CONFIG.row[i];
 
-    size_t buflen = 0;
-    buf[0] = '\0';
-
-    while(1){
-        editorSetStatusMessage(prompt, buf);
-        editorRefreshScreen();
-
-        int input = editorReadKey();
-        if (input == DEL_KEY || input == CTRL_KEY('h') || input == BACKSPACE){
-            if(buflen != 0){
-                buf[--buflen] ='\0';
-            }
-        } else if (input == '\x1b'){
-            editorSetStatusMessage("");
-            free(buf);
-            return NULL;
-        } else if(input == '\r'){
-            if(buflen !=0){
-                editorSetStatusMessage("");
-                return buf;
-            }
-        } else if(!iscntrl(input) && input < 128){
-            if (buflen == bufsize -1){
-                bufsize *= 2;
-                buf = realloc(buf, bufsize);
-            }
-
-            buf[buflen++] = input;
-            buf[buflen] = '\0';
+        char *match = strstr(row->render, query);
+        if(match) {
+            CONFIG.cy = i;
+            CONFIG.cx = editorRowRxToCx(row, match - row->render);
+            CONFIG.rowoff = CONFIG.numrows;
+            break;
         }
     }
-}
 
+    free(query);
+};
+
+char *editorPrompt(char *prompt) {
+  size_t bufsize = 128;
+  char *buf = (char *) malloc(bufsize);
+  size_t buflen = 0;
+  buf[0] = '\0';
+  while (1) {
+    editorSetStatusMessage(prompt, buf);
+    editorRefreshScreen();
+    int c = editorReadKey();
+    if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+      if (buflen != 0) buf[--buflen] = '\0';
+    } else if (c == '\x1b') {
+      editorSetStatusMessage("");
+      free(buf);
+      return NULL;
+    } else if (c == '\r') {
+      if (buflen != 0) {
+        editorSetStatusMessage("");
+        return buf;
+      }
+    } else if (!iscntrl(c) && c < 128) {
+      if (buflen == bufsize - 1) {
+        bufsize *= 2;
+        buf = (char *) realloc(buf, bufsize);
+      }
+      buf[buflen++] = c;
+      buf[buflen] = '\0';
+    }
+  }
+}
 /*** Init ***/
 void initEditor(){
 
@@ -882,7 +939,6 @@ void initEditor(){
     // Clear screen entirely before starting, this stops some artifacts from still ebing rendered
     write(STDOUT_FILENO, "\x1b[2J", 4);
     write(STDOUT_FILENO, "\x1b[H", 3);
-
-
+    
     CONFIG.screenrows -= 2; // Save 1 row at bottom for a status bar
 }
