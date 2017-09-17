@@ -701,8 +701,19 @@ void editorDrawRows(struct abuf *ab){
             if(len > CONFIG.screencols){
                 len = CONFIG.screencols;
             }
-            // at filerow print as many characters, starting at offset as there is screensize or chars left
-            abAppend(ab, &CONFIG.row[filerow].chars[CONFIG.coloff], len);
+            
+            char* thing = &CONFIG.row[filerow].render[CONFIG.coloff];
+            int j;
+            for(j=0; j < len; j++) {
+                if(isdigit(thing[j])){
+                    abAppend(ab, "\x1b[31m", 5);
+                    abAppend(ab, &thing[j], 1);
+                    abAppend(ab, "\x1b[39m", 5);   
+                } else {
+                    // at filerow print as many characters, starting at offset as there is screensize or chars left
+                    abAppend(ab, &thing[j], 1);
+                }
+            }
         }
         // K erases part of current line
         abAppend(ab, "\x1b[K", 3);
