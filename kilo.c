@@ -93,6 +93,7 @@ int getWindowSize(int * rows, int *cols);
 /*** syntax highlighting ***/
 void editorUpdateSyntax(erow *row);
 int editorSyntaxToColor(int hl);
+int is_seperator(int c);
 
 /*** file i/o ***/
 char* editorRowsToString(int *buflen);
@@ -402,6 +403,7 @@ int getWindowSize(int *rows, int *cols){
     }
 }
 
+/*** syntax highlighting ***/
 int editorSyntaxToColor(int hl) {
     switch(hl){
     case HL_NUMBER: return 31;
@@ -414,12 +416,29 @@ void editorUpdateSyntax(erow *row){
     row->hl = realloc(row->hl, row->rsize);
     memset(row->hl, HL_NORMAL, row->rsize);
 
-    int i;
-    for (i = 0; i < row->rsize; i++){
-        if (isdigit(row->render[i])){
+    int prev_sep = 1;
+
+    int i = 0;
+    
+    while(i < row->rsize){
+        char character = row->render[i];
+        unsigned char prev_hl = (i > 0 ) ? row->hl[i - 1] : HL_NORMAL;
+        
+        if((isdigit(character) && (prev_sep || prev_hl == HL_NUMBER)) ||
+           (character == '.' && prev_hl == HL_NUMBER)){
             row->hl[i] = HL_NUMBER;
+            i++;
+            prev_sep = 0;
+            continue;
         }
+
+        prev_sep = is_seperator(character);
+        i++;
     }
+}
+
+int is_seperator(int c){
+    return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
 }
 /*** row operations ***/
 void editorUpdateRow(erow *row){
