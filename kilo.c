@@ -19,6 +19,9 @@
 #define KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
+#define HL_HIGHLIGHT_NUMBERS (1<<0)
+#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
+
 #define CTRL_KEY(k) ((k) & 0x1f) // Binary & operation
 
 enum editorKey {
@@ -40,6 +43,11 @@ enum editorHighlight {
     HL_MATCH
 };
 /*** data ***/
+struct editorSyntax{
+    char* filetype;
+    char** filematch;
+    int flags;
+};
 //Editor row, counts size of chars and a buffer of chars
 typedef struct erow{
     int size;
@@ -62,9 +70,20 @@ struct editorConfig {
     char *filename;
     char statusmsg[80];
     time_t statusmsg_time;
+    struct editorSyntax *syntax;
     struct termios orig_termios;
 };
 
+/*** filetypes ***/
+char* C_HL_extensions[] = {".c", ".h", ".cpp", NULL};
+
+struct editorSyntax HLDB[] = {
+    {  "c",
+       C_HL_extensions,
+       HL_HIGHLIGHT_NUMBERS
+    },
+                              
+};
 /*** types ***/
 // Append buffer
 // change name to be slightly more meaningful, we're not code golfing this
@@ -94,6 +113,34 @@ int getWindowSize(int * rows, int *cols);
 void editorUpdateSyntax(erow *row);
 int editorSyntaxToColor(int hl);
 int is_seperator(int c);
+void editorSelectSyntaxHighlight(){
+    CONFIG.syntax = NULL;
+    if(CONFIG.filename == NULL){
+        return;
+    }
+
+    char* ext  = strrchr(CONFIG.filename, '.');
+
+    for(unsigned int j = 0; j < HLDB_ENTRIES; j++){
+        struct editorSyntax *s = &HLDB[j];
+        unsigned int i = 0;
+        while(s->filematch[i]){
+            int is_ext = (s->filematch[i][0] == '.');
+            if ((is_ext && ext && !strcmp(ext, s->filematch[i])) ||
+                (!is_ext && strstr(CONFIG.filename, s->filematch[i]))) {
+                CONFIG.syntax = s;
+
+                int filerow;
+                for(filerow = 0; filerow < CONFIG.numrows; filerow++){
+                    editorUpdateSyntax(&CONFIG.row[filerow]);
+                }
+                
+                return;
+            }
+            i++;
+        }
+    }
+}
 
 /*** file i/o ***/
 char* editorRowsToString(int *buflen);
@@ -416,6 +463,10 @@ void editorUpdateSyntax(erow *row){
     row->hl = realloc(row->hl, row->rsize);
     memset(row->hl, HL_NORMAL, row->rsize);
 
+    if(CONFIG.syntax == NULL){
+        return;
+    }
+    
     int prev_sep = 1;
 
     int i = 0;
@@ -423,13 +474,15 @@ void editorUpdateSyntax(erow *row){
     while(i < row->rsize){
         char character = row->render[i];
         unsigned char prev_hl = (i > 0 ) ? row->hl[i - 1] : HL_NORMAL;
-        
-        if((isdigit(character) && (prev_sep || prev_hl == HL_NUMBER)) ||
-           (character == '.' && prev_hl == HL_NUMBER)){
-            row->hl[i] = HL_NUMBER;
-            i++;
-            prev_sep = 0;
-            continue;
+
+        if(CONFIG.syntax->flags & HL_HIGHLIGHT_NUMBERS){
+            if((isdigit(character) && (prev_sep || prev_hl == HL_NUMBER)) ||
+               (character == '.' && prev_hl == HL_NUMBER)){
+                row->hl[i] = HL_NUMBER;
+                i++;
+                prev_sep = 0;
+                continue;
+            }
         }
 
         prev_sep = is_seperator(character);
@@ -636,6 +689,8 @@ void editorOpen(char* filename){
     free(CONFIG.filename);
     CONFIG.filename = strdup(filename);
 
+    editorSelectSyntaxHighlight();
+    
     FILE *fp = fopen(filename, "r");
 
     if(!fp){
@@ -665,6 +720,7 @@ void editorSave(){
             editorSetStatusMessage("Save aborted");
             return;
         }
+        editorSelectSyntaxHighlight();
     }
 
     int len;
@@ -788,37 +844,14 @@ void editorDrawRows(struct abuf *ab){
     }
 }
 
-/* void editorDrawStatusBar(struct abuf *ab){ */
-/*     abAppend(ab, "\x1b[7m", 4); */
-
-/*     char status[80],  rstatus[80]; */
-/*     int len = snprintf(status, sizeof(status), "%.20s - %d lines %s", */
-/*                        CONFIG.filename ? CONFIG.filename : "[No Name]", */
-/*                        CONFIG.numrows, CONFIG.dirty? "(modified)" : ""); */
-/*     int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", */
-/*                           CONFIG.cy + 1, CONFIG.numrows); */
-/*     abAppend(ab, status, len); */
-
-/*     while(len < CONFIG.screencols) { */
-/*         if(CONFIG.screencols -len == rlen){ */
-/*             abAppend(ab, rstatus, rlen); */
-/*             break; */
-/*         } else { */
-/*             abAppend(ab, " ", 1); */
-/*             len++; */
-/*         } */
-/*     } */
-/*     abAppend(ab, "\x1b[m", 3); */
-/*     abAppend(ab, "\r\n", 2); */
-/* } */
-
 void editorDrawStatusBar(struct abuf *ab) {
   abAppend(ab, "\x1b[7m", 4);
   char status[80], rstatus[80];
-  int len = snprintf(status, sizeof(status), "%.20s - %d lines",
-    CONFIG.filename ? CONFIG.filename : "[No Name]", CONFIG.numrows);
-  int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
-    CONFIG.cy + 1, CONFIG.numrows);
+  int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
+    CONFIG.filename ? CONFIG.filename : "[No Name]", CONFIG.numrows,
+    CONFIG.dirty ? "(modified)" : "");
+  int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d",
+    CONFIG.syntax ? CONFIG.syntax->filetype : "no ft", CONFIG.cy + 1, CONFIG.numrows);
   if (len > CONFIG.screencols) len = CONFIG.screencols;
   abAppend(ab, status, len);
   while (len < CONFIG.screencols) {
@@ -831,8 +864,8 @@ void editorDrawStatusBar(struct abuf *ab) {
     }
   }
   abAppend(ab, "\x1b[m", 3);
+  abAppend(ab, "\r\n", 2);
 }
-
 void editorRefreshScreen(){
     editorScroll();
     struct abuf ab = ABUF_INIT;
@@ -1076,7 +1109,8 @@ void initEditor(){
     CONFIG.filename = NULL;
     CONFIG.statusmsg[0] = '\0';
     CONFIG.statusmsg_time = 0;
-
+    CONFIG.syntax = NULL;
+    
     if(getWindowSize(&CONFIG.screenrows, &CONFIG.screencols) == -1){
         die("getWindowsize");
     }
