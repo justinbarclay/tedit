@@ -34,6 +34,10 @@ enum editorKey {
     PAGE_DOWN
 };
 
+enum editorHighlight {
+    HL_NORMAL = 0,
+    HL_NUMBER
+};
 /*** data ***/
 //Editor row, counts size of chars and a buffer of chars
 typedef struct erow{
@@ -41,6 +45,7 @@ typedef struct erow{
     int rsize;
     char* chars;
     char* render;
+    unsigned char *hl;
 } erow;
 
 struct editorConfig {
@@ -83,6 +88,10 @@ int editorReadKey();
 void editorProcessKeyPress();
 int getCursorPosition(int *rows, int *cols);
 int getWindowSize(int * rows, int *cols);
+
+/*** syntax highlighting ***/
+void editorUpdateSyntax(erow *row);
+int editorSyntaxToColor(int hl);
 
 /*** file i/o ***/
 char* editorRowsToString(int *buflen);
@@ -258,7 +267,7 @@ void editorProcessKeyPress(){
     case '\r':
         editorInsertNewline();
         break;
-        
+
     case CTRL_KEY('q'):
         if(CONFIG.dirty && quit_times > 0) {
             // Clear screen and exit on quit
@@ -274,7 +283,7 @@ void editorProcessKeyPress(){
     case CTRL_KEY('s'):
         editorSave();
         break;
-        
+
     case HOME_KEY:
         CONFIG.cx =0;
         break;
@@ -322,7 +331,7 @@ void editorProcessKeyPress(){
     case CTRL_KEY('l'):
     case '\x1b':
         break;
-        
+
     default:
         editorInsertChar(input);
         break;
@@ -392,6 +401,24 @@ int getWindowSize(int *rows, int *cols){
     }
 }
 
+int editorSyntaxToColor(int hl) {
+    switch(hl){
+    case HL_NUMBER: return 31;
+    default: return 37;
+    }
+}
+
+void editorUpdateSyntax(erow *row){
+    row->hl = realloc(row->hl, row->rsize);
+    memset(row->hl, HL_NORMAL, row->rsize);
+
+    int i;
+    for (i = 0; i < row->rsize; i++){
+        if (isdigit(row->render[i])){
+            row->hl[i] = HL_NUMBER;
+        }
+    }
+}
 /*** row operations ***/
 void editorUpdateRow(erow *row){
     int tabs = 0;
@@ -405,7 +432,6 @@ void editorUpdateRow(erow *row){
 
     free(row->render);
     row->render = malloc(row->size + tabs*(KILO_TAB_STOP -1) + 1);
-
 
     int idx = 0;
 
@@ -421,11 +447,14 @@ void editorUpdateRow(erow *row){
     }
 
     row->render[idx] = '\0';
+    row->rsize = idx;
+
+    editorUpdateSyntax(row);
 }
 
 void editorInsertRow(int at, char* s, size_t len){
     if(at < 0 || at > CONFIG.numrows) return;
-    
+
     CONFIG.row = realloc(CONFIG.row, sizeof(erow) * (CONFIG.numrows + 1));
     memmove(&CONFIG.row[at + 1], &CONFIG.row[at], sizeof(erow) * (CONFIG.numrows - at));
 
@@ -436,6 +465,7 @@ void editorInsertRow(int at, char* s, size_t len){
 
     CONFIG.row[at].rsize = 0;
     CONFIG.row[at].render = NULL;
+    CONFIG.row[at].hl = NULL;
     editorUpdateRow(&CONFIG.row[at]);
 
     CONFIG.numrows++;
@@ -444,6 +474,7 @@ void editorInsertRow(int at, char* s, size_t len){
 void editorFreeRow(erow *row){
     free(row->render);
     free(row->chars);
+    free(row->hl);
 }
 
 void editorDelRow(int at){
@@ -542,7 +573,7 @@ void editorDelChar(){
     // if the cursor is past the end of the file there is nothing to delete
     if(CONFIG.cy == CONFIG.numrows) return;
     if(CONFIG.cx == 0 && CONFIG.cy == 0) return;
-    
+
     erow *row = &CONFIG.row[CONFIG.cy];
     if(CONFIG.cx > 0){
         editorRowDelChar(row, CONFIG.cx - 1);
@@ -554,6 +585,7 @@ void editorDelChar(){
         CONFIG.cy--;
     }
 }
+
 /*** file i/o ***/
 
 /*
@@ -617,7 +649,7 @@ void editorSave(){
     int len;
     char *buf = editorRowsToString(&len);
 
-    
+
     int fd = open(CONFIG.filename, O_RDWR | O_CREAT, 0644);
     if (fd != -1){
         if (ftruncate(fd, len) != -1){
@@ -702,18 +734,32 @@ void editorDrawRows(struct abuf *ab){
                 len = CONFIG.screencols;
             }
             
-            char* thing = &CONFIG.row[filerow].render[CONFIG.coloff];
+            char* row = &CONFIG.row[filerow].render[CONFIG.coloff];
+            unsigned char* hl = &CONFIG.row[filerow].hl[CONFIG.coloff];
+            int current_color = -1;
+            
             int j;
             for(j=0; j < len; j++) {
-                if(isdigit(thing[j])){
-                    abAppend(ab, "\x1b[31m", 5);
-                    abAppend(ab, &thing[j], 1);
-                    abAppend(ab, "\x1b[39m", 5);   
+                if(hl[j] == HL_NORMAL) {
+                    if(current_color != -1){
+                        abAppend(ab, "\x1b[39m", 5);
+                        current_color = -1;
+                    }
+                    abAppend(ab, &row[j], 1);
                 } else {
+                    int color = editorSyntaxToColor(hl[j]);
+
+                    if(color != current_color){
+                        current_color = color;
+                        char buf[16];
+                        int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+                        abAppend(ab, buf, clen);
+                    }
                     // at filerow print as many characters, starting at offset as there is screensize or chars left
-                    abAppend(ab, &thing[j], 1);
+                    abAppend(ab, &row[j], 1);
                 }
             }
+            abAppend(ab, "\x1b[39m", 5);
         }
         // K erases part of current line
         abAppend(ab, "\x1b[K", 3);
@@ -723,7 +769,7 @@ void editorDrawRows(struct abuf *ab){
 
 /* void editorDrawStatusBar(struct abuf *ab){ */
 /*     abAppend(ab, "\x1b[7m", 4); */
-    
+
 /*     char status[80],  rstatus[80]; */
 /*     int len = snprintf(status, sizeof(status), "%.20s - %d lines %s", */
 /*                        CONFIG.filename ? CONFIG.filename : "[No Name]", */
@@ -885,7 +931,7 @@ void editorFindCallback(char *query, int key){
     static int last_match = -1;
     static int direction = 1;
 
-    
+
     if( key == '\r' || key == '\x1b'){
         last_match = -1;
         direction = 1;
@@ -911,7 +957,7 @@ void editorFindCallback(char *query, int key){
         } else if (current == CONFIG.numrows){
             current = 0;
         }
-        
+
         erow * row = &CONFIG.row[current];
 
         char *match = strstr(row->render, query);
@@ -931,7 +977,7 @@ void editorFind(){
 
     int saved_coloff = CONFIG.coloff;
     int saved_rowoff = CONFIG.rowoff;
-    
+
     char *query = editorPrompt("Search: %s (ESC to cancel/Arrows/Enter)", editorFindCallback);
     if(query){
         free(query);
@@ -1004,6 +1050,6 @@ void initEditor(){
     // Clear screen entirely before starting, this stops some artifacts from still ebing rendered
     write(STDOUT_FILENO, "\x1b[2J", 4);
     write(STDOUT_FILENO, "\x1b[H", 3);
-    
+
     CONFIG.screenrows -= 2; // Save 1 row at bottom for a status bar
 }
