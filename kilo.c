@@ -20,6 +20,8 @@
 #define KILO_QUIT_TIMES 3
 
 #define HL_HIGHLIGHT_NUMBERS (1<<0)
+#define HL_HIGHLIGHT_STRINGS (1<<1)
+
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 #define CTRL_KEY(k) ((k) & 0x1f) // Binary & operation
@@ -39,6 +41,7 @@ enum editorKey {
 
 enum editorHighlight {
     HL_NORMAL = 0,
+    HL_STRING,
     HL_NUMBER,
     HL_MATCH
 };
@@ -80,7 +83,7 @@ char* C_HL_extensions[] = {".c", ".h", ".cpp", NULL};
 struct editorSyntax HLDB[] = {
     {  "c",
        C_HL_extensions,
-       HL_HIGHLIGHT_NUMBERS
+       HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
     },
                               
 };
@@ -113,34 +116,7 @@ int getWindowSize(int * rows, int *cols);
 void editorUpdateSyntax(erow *row);
 int editorSyntaxToColor(int hl);
 int is_seperator(int c);
-void editorSelectSyntaxHighlight(){
-    CONFIG.syntax = NULL;
-    if(CONFIG.filename == NULL){
-        return;
-    }
-
-    char* ext  = strrchr(CONFIG.filename, '.');
-
-    for(unsigned int j = 0; j < HLDB_ENTRIES; j++){
-        struct editorSyntax *s = &HLDB[j];
-        unsigned int i = 0;
-        while(s->filematch[i]){
-            int is_ext = (s->filematch[i][0] == '.');
-            if ((is_ext && ext && !strcmp(ext, s->filematch[i])) ||
-                (!is_ext && strstr(CONFIG.filename, s->filematch[i]))) {
-                CONFIG.syntax = s;
-
-                int filerow;
-                for(filerow = 0; filerow < CONFIG.numrows; filerow++){
-                    editorUpdateSyntax(&CONFIG.row[filerow]);
-                }
-                
-                return;
-            }
-            i++;
-        }
-    }
-}
+void editorSelectSyntaxHighlight();
 
 /*** file i/o ***/
 char* editorRowsToString(int *buflen);
@@ -493,6 +469,36 @@ void editorUpdateSyntax(erow *row){
 int is_seperator(int c){
     return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
 }
+
+void editorSelectSyntaxHighlight(){
+    CONFIG.syntax = NULL;
+    if(CONFIG.filename == NULL){
+        return;
+    }
+
+    char* ext  = strrchr(CONFIG.filename, '.');
+
+    for(unsigned int j = 0; j < HLDB_ENTRIES; j++){
+        struct editorSyntax *s = &HLDB[j];
+        unsigned int i = 0;
+        while(s->filematch[i]){
+            int is_ext = (s->filematch[i][0] == '.');
+            if ((is_ext && ext && !strcmp(ext, s->filematch[i])) ||
+                (!is_ext && strstr(CONFIG.filename, s->filematch[i]))) {
+                CONFIG.syntax = s;
+
+                int filerow;
+                for(filerow = 0; filerow < CONFIG.numrows; filerow++){
+                    editorUpdateSyntax(&CONFIG.row[filerow]);
+                }
+                
+                return;
+            }
+            i++;
+        }
+    }
+}
+
 /*** row operations ***/
 void editorUpdateRow(erow *row){
     int tabs = 0;
