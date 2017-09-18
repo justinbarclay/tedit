@@ -1,4 +1,4 @@
-// Step 133
+// Step 165
 
 /*** include ***/
 #include <ctype.h>
@@ -444,13 +444,37 @@ void editorUpdateSyntax(erow *row){
     }
     
     int prev_sep = 1;
-
+    int in_string = 0;
+    
     int i = 0;
     
     while(i < row->rsize){
         char character = row->render[i];
         unsigned char prev_hl = (i > 0 ) ? row->hl[i - 1] : HL_NORMAL;
 
+        if(CONFIG.syntax->flags & HL_HIGHLIGHT_STRINGS){
+            if(in_string){
+                row->hl[i] = HL_STRING;
+                if(character =='\\' && i + 1 < row->rsize){
+                    row->hl[i+1] = HL_STRING;
+                    i += 2;
+                    continue;
+                }
+                if(character == in_string) {
+                    in_string = 0;
+                }
+                i++;
+                prev_sep = 1;
+                continue;   
+            } else {
+                if (character =='"' || character == '\'') {
+                    in_string = character;
+                    row->hl[i] = HL_STRING;
+                    i++;
+                    continue;
+                }
+            }
+        }
         if(CONFIG.syntax->flags & HL_HIGHLIGHT_NUMBERS){
             if((isdigit(character) && (prev_sep || prev_hl == HL_NUMBER)) ||
                (character == '.' && prev_hl == HL_NUMBER)){
